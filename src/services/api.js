@@ -4,6 +4,10 @@ import axios from "axios";
 const IAM_SERVICE_URL = import.meta.env.VITE_IAM_SERVICE_URL || 'https://iam-service-fz3h.onrender.com';
 const LABORATORY_SERVICE_URL = import.meta.env.VITE_LABORATORY_SERVICE_URL || 'https://laboratory-service.onrender.com';
 
+// Unified API Base URL (for Render deployment - routes through Nginx)
+// If VITE_API_BASE_URL is set, use it for all API calls (single Nginx endpoint)
+const UNIFIED_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 // Endpoints that should route to IAM Service
 const IAM_ENDPOINTS = ['/Auth', '/User', '/Role', '/EventLog', '/PatientInfo', '/Registers'];
 
@@ -12,12 +16,19 @@ const LABORATORY_ENDPOINTS = ['/Patient', '/TestOrder', '/TestResult', '/Medical
 
 // Determine which service to use based on endpoint
 const getServiceUrl = (url) => {
-  if (!import.meta.env.PROD) {
-    // Development: use proxy
-    return "/api";
+  // Priority 1: Use unified API base URL if configured (for Render/Nginx setup)
+  if (UNIFIED_API_BASE_URL) {
+    return UNIFIED_API_BASE_URL;
   }
 
-  // Production: route to correct service
+  // Priority 2: For Docker/local development: use localhost API through Nginx
+  // Always use local API when in development mode or when VITE_USE_LOCAL_API is set
+  if (!import.meta.env.PROD || import.meta.env.VITE_USE_LOCAL_API === 'true' || window.location.hostname === 'localhost') {
+    // Frontend running on localhost:5173, backend on localhost:80 (Nginx)
+    return "http://localhost/api";
+  }
+
+  // Priority 3: Production: route to correct service (legacy mode)
   if (!url) return IAM_SERVICE_URL; // Default to IAM Service
 
   // Check if URL starts with any IAM endpoint
@@ -37,8 +48,12 @@ const getServiceUrl = (url) => {
 };
 
 // Current Axios configuration 
+// Use unified API base URL if configured, otherwise use local or service-specific URLs
+const isLocalDev = !import.meta.env.PROD || import.meta.env.VITE_USE_LOCAL_API === 'true' || window.location.hostname === 'localhost';
+const defaultBaseURL = UNIFIED_API_BASE_URL || (isLocalDev ? "http://localhost/api" : IAM_SERVICE_URL);
+
 const api = axios.create({
-  baseURL: import.meta.env.PROD ? IAM_SERVICE_URL : "/api",
+  baseURL: defaultBaseURL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -48,12 +63,18 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    // In production, route to correct service based on endpoint
-    if (import.meta.env.PROD) {
-      const serviceUrl = getServiceUrl(config.url);
-      config.baseURL = serviceUrl;
-      
-      // Ensure /api prefix
+    // Get the service URL (handles unified, local, or service-specific routing)
+    const serviceUrl = getServiceUrl(config.url);
+    config.baseURL = serviceUrl;
+    
+    // Ensure /api prefix for unified API base URL or local dev
+    // Skip prefix if using service-specific URLs (they already have /api in their base)
+    if (UNIFIED_API_BASE_URL || isLocalDev) {
+      if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
+        config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+      }
+    } else if (import.meta.env.PROD) {
+      // For service-specific URLs in production, ensure /api prefix
       if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
         config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
       }
@@ -100,17 +121,22 @@ api.interceptors.response.use(
           throw new Error('Missing refresh token');
         }
 
-        // Refresh token should always go to IAM Service
+        // Refresh token should always go to IAM Service or unified API
+        const refreshBaseURL = UNIFIED_API_BASE_URL || (isLocalDev ? "http://localhost/api" : IAM_SERVICE_URL);
         const refreshClient = axios.create({
-          baseURL: import.meta.env.PROD ? IAM_SERVICE_URL : "/api",
+          baseURL: refreshBaseURL,
           headers: { 'Content-Type': 'application/json' },
           timeout: 60000, // Increased to 60 seconds to match main axios instance
           withCredentials: false,
         });
         
-        // Add /api prefix interceptor for refreshClient too
+        // Add /api prefix interceptor for refreshClient
         refreshClient.interceptors.request.use((config) => {
-          if (import.meta.env.PROD) {
+          if (UNIFIED_API_BASE_URL || isLocalDev) {
+            if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
+              config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+            }
+          } else if (import.meta.env.PROD && !import.meta.env.VITE_USE_LOCAL_API) {
             if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
               config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
             }

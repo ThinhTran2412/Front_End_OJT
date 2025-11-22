@@ -25,74 +25,13 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        // API chính (Auth, User, Role, etc.) - Port 7155
-        "/api/Auth": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
-          changeOrigin: true,
-          secure: false,
-        },
-        "/api/User": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
-          changeOrigin: true,
-          secure: false,
-        },
-        "/api/Role": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
-          changeOrigin: true,
-          secure: false,
-        },
-          // API MedicalRecord - Port 7157
-          "/api/MedicalRecord": {
-            target: "https://localhost:7157",
-            changeOrigin: true,
-            secure: false,
-          },
-        "/api/EventLog": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
-          changeOrigin: true,
-          secure: false,
-        },
-        
-        // API PatientInfo - Port 7155
-        "/api/PatientInfo": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
-          changeOrigin: true,
-          secure: false,
-        },
-
-        // API Patient - Port 7157
-        "/api/Patient": {
-          target: "https://localhost:7157",
-          changeOrigin: true,
-          secure: false,
-        },
-
-        // API TestOrder - Port 7157
-        "/api/TestOrder": {
-          target: env.VITE_PATIENT_API_URL || "https://localhost:7157",
-          changeOrigin: true,
-          secure: false,
-        },
-
-        // API TestResult - Port 7157
-        "/api/TestResult": {
-          target: env.VITE_PATIENT_API_URL || "https://localhost:7157",
-          changeOrigin: true,
-          secure: false,
-        },
-
-        // API AI Review - Port 7157 (same as TestOrder)
-        "/api/ai-review": {
-          target: env.VITE_PATIENT_API_URL || "https://localhost:7157",
-          changeOrigin: true,
-          secure: false,
-        },
-
-        // Fallback cho các API còn lại - Port 7155
+        // Proxy tất cả API requests qua Nginx (localhost:80)
+        // Nginx sẽ route đến đúng service dựa trên path
         "/api": {
-          target: env.VITE_AUTH_API_URL || "https://localhost:7155",
+          target: env.VITE_API_BASE_URL || "http://localhost",
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path, // Keep /api prefix
         },
       },
     },
