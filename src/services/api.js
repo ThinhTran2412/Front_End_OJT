@@ -68,15 +68,22 @@ api.interceptors.request.use(
     config.baseURL = serviceUrl;
     
     // Ensure /api prefix for unified API base URL or local dev
-    // Skip prefix if using service-specific URLs (they already have /api in their base)
+    // Check if baseURL already ends with /api to avoid double prefix
+    const baseURLHasApi = config.baseURL && config.baseURL.endsWith('/api');
+    
     if (UNIFIED_API_BASE_URL || isLocalDev) {
+      // Only add /api prefix if baseURL doesn't already have it
       if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
-        config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+        if (!baseURLHasApi) {
+          config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+        }
       }
     } else if (import.meta.env.PROD) {
-      // For service-specific URLs in production, ensure /api prefix
+      // For service-specific URLs in production, ensure /api prefix only if baseURL doesn't have it
       if (config.url && !config.url.startsWith('/api/') && !config.url.startsWith('http')) {
-        config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+        if (!baseURLHasApi) {
+          config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+        }
       }
     }
     

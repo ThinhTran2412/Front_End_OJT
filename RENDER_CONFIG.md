@@ -27,8 +27,10 @@ Ngrok đang expose Nginx qua URL: `https://indoor-amiyah-auditorily.ngrok-free.d
 Cấu hình trên Render:
 
 ```
-VITE_API_BASE_URL=https://indoor-amiyah-auditorily.ngrok-free.dev
+VITE_API_BASE_URL=https://indoor-amiyah-auditorily.ngrok-free.dev/api
 ```
+
+**Lưu ý quan trọng:** URL phải có suffix `/api` vì frontend sẽ thêm `/api` prefix vào các endpoint. Nếu không có `/api` trong baseURL, request sẽ trỏ sai.
 
 **Lưu ý:**
 - Ngrok URL sẽ thay đổi mỗi khi restart ngrok (nếu dùng free plan)
