@@ -20,23 +20,20 @@
 
 Vào **Environment** tab và thêm các biến sau:
 
-#### Option 1: Dùng Unified API Base URL (Khuyến nghị - Nginx Setup)
+#### Option 1: Dùng Unified API Base URL qua Ngrok (Khuyến nghị)
 
-Nếu bạn đã có Nginx public URL, sử dụng cấu hình này:
+Ngrok đang expose Nginx qua URL: `https://indoor-amiyah-auditorily.ngrok-free.dev`
+
+Cấu hình trên Render:
 
 ```
-VITE_API_BASE_URL=https://your-nginx-domain.com
-```
-
-**Ví dụ:**
-```
-VITE_API_BASE_URL=https://your-nginx-domain.com
+VITE_API_BASE_URL=https://indoor-amiyah-auditorily.ngrok-free.dev
 ```
 
-Hoặc nếu Nginx chạy trên port khác:
-```
-VITE_API_BASE_URL=http://your-nginx-ip:80
-```
+**Lưu ý:**
+- Ngrok URL sẽ thay đổi mỗi khi restart ngrok (nếu dùng free plan)
+- Nếu muốn giữ URL cố định, cần upgrade ngrok plan hoặc cấu hình domain tùy chỉnh
+- Đảm bảo ngrok đang chạy và forward đúng đến `http://localhost:80` (Nginx)
 
 #### Option 2: Dùng Service URLs riêng (Legacy Mode)
 
@@ -56,7 +53,17 @@ https://front-end-ojt.onrender.com
 
 **Đảm bảo:**
 - Backend services đã được cấu hình CORS để cho phép `https://front-end-ojt.onrender.com`
-- Nginx (nếu có) đã được cấu hình để expose public
+- Ngrok đang chạy và forward đúng đến `http://localhost:80` (Nginx)
+- Nginx đang chạy và accessible trên port 80
+
+**Ngrok URL hiện tại:**
+```
+https://indoor-amiyah-auditorily.ngrok-free.dev
+```
+
+**Kiểm tra ngrok:**
+- Mở ngrok Web Interface: http://127.0.0.1:4040
+- Kiểm tra forwarding: `https://indoor-amiyah-auditorily.ngrok-free.dev -> http://localhost:80`
 
 ### Lưu ý quan trọng
 
@@ -83,6 +90,13 @@ Sau khi deploy:
 - Kiểm tra Nginx routing có đúng không
 
 **Lỗi Network:**
-- Kiểm tra backend services có đang chạy không
+- Kiểm tra backend services có đang chạy không: `docker-compose ps`
 - Kiểm tra Nginx có accessible từ internet không
+- Kiểm tra ngrok có đang chạy không: mở http://127.0.0.1:4040
+- Kiểm tra ngrok forwarding có đúng không: `https://indoor-amiyah-auditorily.ngrok-free.dev -> http://localhost:80`
+
+**Lưu ý về Ngrok:**
+- Ngrok URL sẽ thay đổi nếu restart ngrok (free plan)
+- Nếu URL thay đổi, cần cập nhật `VITE_API_BASE_URL` trên Render và rebuild
+- Để giữ URL cố định, cần upgrade ngrok plan hoặc config domain tùy chỉnh
 
