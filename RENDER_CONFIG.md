@@ -101,4 +101,12 @@ Sau khi deploy:
 - Ngrok URL sẽ thay đổi nếu restart ngrok (free plan)
 - Nếu URL thay đổi, cần cập nhật `VITE_API_BASE_URL` trên Render và rebuild
 - Để giữ URL cố định, cần upgrade ngrok plan hoặc config domain tùy chỉnh
+- **Ngrok Warning Page**: Frontend đã tự động thêm header `ngrok-skip-browser-warning: true` để bypass ngrok warning page
+  - Nếu vẫn gặp lỗi HTML response từ ngrok, đảm bảo frontend code đã được rebuild với changes mới nhất
+
+**Lỗi Ngrok Warning Page:**
+- Nếu nhận được HTML response thay vì JSON từ API:
+  - Đảm bảo frontend đã được rebuild với code mới nhất (có header `ngrok-skip-browser-warning`)
+  - Kiểm tra Network tab trong DevTools - request phải có header `ngrok-skip-browser-warning: true`
+  - Nếu vẫn không hoạt động, thử upgrade ngrok plan hoặc dùng domain tùy chỉnh
 
