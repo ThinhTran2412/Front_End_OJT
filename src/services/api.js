@@ -87,6 +87,12 @@ api.interceptors.request.use(
       }
     }
     
+    // Add ngrok skip browser warning header for ngrok free plan
+    // This bypasses ngrok's browser warning page
+    if (config.baseURL && config.baseURL.includes('ngrok-free.dev') || config.baseURL && config.baseURL.includes('ngrok.io')) {
+      config.headers['ngrok-skip-browser-warning'] = 'true';
+    }
+    
     const accessToken = localStorage.getItem('accessToken');
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
@@ -130,9 +136,16 @@ api.interceptors.response.use(
 
         // Refresh token should always go to IAM Service or unified API
         const refreshBaseURL = UNIFIED_API_BASE_URL || (isLocalDev ? "http://localhost/api" : IAM_SERVICE_URL);
+        const refreshHeaders = { 'Content-Type': 'application/json' };
+        
+        // Add ngrok skip browser warning header if using ngrok
+        if (refreshBaseURL && (refreshBaseURL.includes('ngrok-free.dev') || refreshBaseURL.includes('ngrok.io'))) {
+          refreshHeaders['ngrok-skip-browser-warning'] = 'true';
+        }
+        
         const refreshClient = axios.create({
           baseURL: refreshBaseURL,
-          headers: { 'Content-Type': 'application/json' },
+          headers: refreshHeaders,
           timeout: 60000, // Increased to 60 seconds to match main axios instance
           withCredentials: false,
         });
