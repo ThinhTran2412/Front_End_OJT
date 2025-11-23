@@ -51,6 +51,7 @@ for /f "tokens=1,* delims=/" %%a in ('git rev-parse --abbrev-ref --symbolic-full
 )
 
 REM Get remote name - use tracking remote if available, otherwise get first remote
+REM IMPORTANT: REMOTE_NAME must be simple remote name (e.g., "origin"), NOT "origin/branch"
 if not "!TRACKING_REMOTE!"=="" (
     set REMOTE_NAME=!TRACKING_REMOTE!
 ) else (
@@ -63,7 +64,10 @@ if not "!TRACKING_REMOTE!"=="" (
 )
 
 REM Get remote URL from actual git
+REM Ensure REMOTE_NAME is simple name (no slash), then get URL
 if not "!REMOTE_NAME!"=="" (
+    REM Remove any branch part if accidentally included (shouldn't happen, but safety check)
+    for /f "tokens=1 delims=/" %%n in ("!REMOTE_NAME!") do set REMOTE_NAME=%%n
     for /f "tokens=*" %%u in ('git remote get-url !REMOTE_NAME! 2^>nul') do set REMOTE_URL=%%u
 )
 
@@ -119,14 +123,19 @@ if "%BRANCH_OPTION%"=="1" (
     )
     echo   [OK] Checked out branch: !TARGET_BRANCH!
     
-    REM Update tracking info after checkout
-    for /f "tokens=1,2" %%a in ('git rev-parse --abbrev-ref --symbolic-full-name @{u} 2^>nul') do (
+    REM Update tracking info after checkout - keep REMOTE_NAME as simple remote name
+    for /f "tokens=1,* delims=/" %%a in ('git rev-parse --abbrev-ref --symbolic-full-name @{u} 2^>nul') do (
         set TRACKING_REMOTE=%%a
         set TRACKING_BRANCH=%%b
     )
+    REM Only update REMOTE_NAME if not already set, keep it as simple remote name
     if not "!TRACKING_REMOTE!"=="" (
-        set REMOTE_NAME=!TRACKING_REMOTE!
-        for /f "tokens=*" %%u in ('git remote get-url !REMOTE_NAME! 2^>nul') do set REMOTE_URL=%%u
+        if "!REMOTE_NAME!"=="" (
+            set REMOTE_NAME=!TRACKING_REMOTE!
+        )
+        if not "!REMOTE_NAME!"=="" (
+            for /f "tokens=*" %%u in ('git remote get-url !REMOTE_NAME! 2^>nul') do set REMOTE_URL=%%u
+        )
     )
 ) else if "%BRANCH_OPTION%"=="3" (
     echo.
@@ -158,15 +167,23 @@ REM Step 2: Check Git Status (only Front_End files)
 REM ====================================================================
 cd /d "%GIT_ROOT%"
 
-REM Refresh git info
+REM Refresh git info - keep REMOTE_NAME as simple remote name (origin), not origin/branch
 for /f "tokens=*" %%b in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set CURRENT_BRANCH=%%b
-for /f "tokens=1,2" %%a in ('git rev-parse --abbrev-ref --symbolic-full-name @{u} 2^>nul') do (
+for /f "tokens=1,* delims=/" %%a in ('git rev-parse --abbrev-ref --symbolic-full-name @{u} 2^>nul') do (
     set TRACKING_REMOTE=%%a
     set TRACKING_BRANCH=%%b
 )
-if not "!TRACKING_REMOTE!"=="" (
-    set REMOTE_NAME=!TRACKING_REMOTE!
+REM Only refresh REMOTE_URL, don't change REMOTE_NAME (keep it as simple remote name)
+REM Safety check: ensure REMOTE_NAME doesn't contain "/"
+if not "!REMOTE_NAME!"=="" (
+    for /f "tokens=1 delims=/" %%n in ("!REMOTE_NAME!") do set REMOTE_NAME=%%n
     for /f "tokens=*" %%u in ('git remote get-url !REMOTE_NAME! 2^>nul') do set REMOTE_URL=%%u
+) else (
+    REM If REMOTE_NAME is empty, set it from tracking
+    if not "!TRACKING_REMOTE!"=="" (
+        set REMOTE_NAME=!TRACKING_REMOTE!
+        for /f "tokens=*" %%u in ('git remote get-url !REMOTE_NAME! 2^>nul') do set REMOTE_URL=%%u
+    )
 )
 
 echo [Step 2/5] Checking git status for Front_End...
