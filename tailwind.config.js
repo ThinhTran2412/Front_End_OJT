@@ -4,7 +4,8 @@ export default {
     "./index.html", 
     "./src/**/*.{js,jsx,ts,tsx}",
     "./src/**/*.jsx",
-    "./src/**/*.js"
+    "./src/**/*.js",
+    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}"
   ],
   theme: {
     extend: {
@@ -16,6 +17,16 @@ export default {
         'pastel-blue-lighter': '#99EBFF',
         'pastel-blue-dark': '#00B8E6',
         'pastel-blue-darker': '#0099B3',
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          primary: 'hsl(var(--sidebar-primary))',
+          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+          accent: 'hsl(var(--sidebar-accent))',
+          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+          border: 'hsl(var(--sidebar-border))',
+          ring: 'hsl(var(--sidebar-ring))',
+        },
       }
     },
   },

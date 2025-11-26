@@ -7,6 +7,7 @@ import { exportTestResultsToPdf, getTestResultsByTestOrderId } from '../../servi
 import api from '../../services/api';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import jobManager from '../../utils/BackgroundJobManager';
+import { RingSpinner, InlineLoader } from '../../components/Loading';
 
 export default function MyPatientPage() {
   const navigate = useNavigate();
@@ -248,10 +249,12 @@ export default function MyPatientPage() {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your patient information...</p>
-          </div>
+          <InlineLoader 
+            text="Loading your patient information" 
+            size="large" 
+            theme="blue" 
+            centered={true}
+          />
         </div>
       </DashboardLayout>
     );
@@ -560,7 +563,7 @@ export default function MyPatientPage() {
                               title="Export PDF"
                             >
                               {isExportingPdf ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <RingSpinner size="small" text="" theme="blue" />
                               ) : (
                                 <FileDown className="w-4 h-4" />
                               )}
@@ -574,7 +577,7 @@ export default function MyPatientPage() {
                           <div className="px-4 pb-4 border-t border-gray-200">
                             {isLoadingResults ? (
                               <div className="py-4 flex items-center justify-center">
-                                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                                <RingSpinner size="small" text="" theme="blue" />
                                 <span className="ml-2 text-xs text-gray-600">Loading results...</span>
                               </div>
                             ) : orderTestResults.length > 0 ? (
@@ -778,7 +781,7 @@ export default function MyPatientPage() {
                           <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
                             {isLoadingResults ? (
                               <div className="py-4 flex items-center justify-center">
-                                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                                <RingSpinner size="small" text="" theme="blue" />
                                 <span className="ml-2 text-xs text-gray-600">Loading results...</span>
                               </div>
                             ) : orderTestResults.length > 0 ? (

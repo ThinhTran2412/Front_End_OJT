@@ -1,5 +1,52 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Trash2, AlertCircle } from 'lucide-react';
+import {
+  TextField,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Autocomplete,
+  Box,
+  Typography,
+  Alert,
+  Button,
+  IconButton,
+  Paper,
+  Divider
+} from '@mui/material';
+import { RingSpinner } from '../Loading';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+
+// Add custom CSS for animations
+const styles = `
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in-up {
+    animation: fade-in-up 0.3s ease-out;
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined' && !document.getElementById('test-order-modal-styles')) {
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'test-order-modal-styles';
+  styleSheet.textContent = styles;
+  document.head.appendChild(styleSheet);
+}
 
 export default function TestOrderModal({ 
   isOpen, 
@@ -13,7 +60,7 @@ export default function TestOrderModal({
   const [formData, setFormData] = useState({
     identifyNumber: '',
     patientName: '',
-    dateOfBirth: '',
+    dateOfBirth: null, // Will be dayjs object
     age: '',
     gender: 'Male',
     address: '',
@@ -21,7 +68,7 @@ export default function TestOrderModal({
     email: '',
     priority: 'Normal',
     note: '',
-    servicePackageId: ''
+    testType: ''
   });
   
   const [errors, setErrors] = useState({});
@@ -31,15 +78,31 @@ export default function TestOrderModal({
   const priorities = ['Normal', 'Urgent', 'STAT'];
   const genders = ['Male', 'Female', 'Other'];
   
-  // Service packages with real GUIDs
-  const servicePackages = [
-    { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', name: 'Complete Blood Count (CBC)' },
-    { id: '4fa85f64-5717-4562-b3fc-2c963f66afa7', name: 'Lipid Panel' },
-    { id: '5fa85f64-5717-4562-b3fc-2c963f66afa8', name: 'Comprehensive Metabolic Panel' },
-    { id: '6fa85f64-5717-4562-b3fc-2c963f66afa9', name: 'Thyroid Function Test' },
-    { id: '7fa85f64-5717-4562-b3fc-2c963f66afaa', name: 'Liver Function Test' },
-    { id: '8fa85f64-5717-4562-b3fc-2c963f66afab', name: 'Renal Function Test' }
+  // Helper function to determine if patient fields should be read-only
+  const isPatientFieldReadOnly = () => {
+    return mode === 'create'; // Only read-only for existing patient, not for new patient
+  };
+  
+  // Test types for selection (display labels)
+  const testTypes = [
+    'Complete Blood Count (CBC)',
+    'Lipid Panel',
+    'Comprehensive Metabolic Panel',
+    'Thyroid Function Test',
+    'Liver Function Test',
+    'Renal Function Test',
+    'Urinalysis',
+    'Blood Glucose Test',
+    'Hemoglobin A1C',
+    'Vitamin D Test'
   ];
+
+  // Map display test type to actual backend test type
+  // For demo purposes, all test types map to 'CBC' as only CBC has data
+  const mapTestTypeForBackend = (displayTestType) => {
+    // Always return 'CBC' for demo as other test types don't have data yet
+    return 'CBC';
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +110,7 @@ export default function TestOrderModal({
         setFormData({
           identifyNumber: initialData.identifyNumber || '',
           patientName: initialData.patientName || '',
-          dateOfBirth: initialData.dateOfBirth ? initialData.dateOfBirth.split('T')[0] : '',
+          dateOfBirth: initialData.dateOfBirth ? dayjs(initialData.dateOfBirth) : null,
           age: String(initialData.age || ''),
           gender: initialData.gender || 'Male',
           address: initialData.address || '',
@@ -55,13 +118,15 @@ export default function TestOrderModal({
           email: initialData.email || '',
           priority: initialData.priority || 'Normal',
           note: initialData.note || '',
-          servicePackageId: initialData.servicePackageId || ''
+          testType: initialData.testType || ''
         });
       } else if (mode === 'create' && patientData) {
+        // Mode: Tạo test order cho patient có sẵn (auto-fill patient data)
+        console.log('TestOrderModal - Auto-filling with patientData:', patientData);
         setFormData({
           identifyNumber: patientData.identifyNumber || '',
           patientName: patientData.fullName || '',
-          dateOfBirth: patientData.dateOfBirth ? patientData.dateOfBirth.split('T')[0] : '',
+          dateOfBirth: patientData.dateOfBirth ? dayjs(patientData.dateOfBirth) : null,
           age: String(patientData.age || ''),
           gender: patientData.gender || 'Male',
           address: patientData.address || '',
@@ -69,7 +134,22 @@ export default function TestOrderModal({
           email: patientData.email || '',
           priority: 'Normal',
           note: '',
-          servicePackageId: servicePackages[0]?.id || ''
+          testType: ''
+        });
+      } else if (mode === 'create_new_patient') {
+        // Mode: Tạo test order cho patient mới (tất cả field đều trống và có thể nhập)
+        setFormData({
+          identifyNumber: '',
+          patientName: '',
+          dateOfBirth: null,
+          age: '',
+          gender: 'Male',
+          address: '',
+          phoneNumber: '',
+          email: '',
+          priority: 'Normal',
+          note: '',
+          testType: ''
         });
       }
       setErrors({});
@@ -80,42 +160,74 @@ export default function TestOrderModal({
   const validateForm = () => {
     const newErrors = {};
     
-    // Common validations for both CREATE and EDIT modes
-    if (!formData.identifyNumber.trim()) {
-      newErrors.identifyNumber = 'Identify Number is required';
-    }
-    
-    if (!formData.patientName.trim()) {
-      newErrors.patientName = 'Patient Name is required';
-    }
-    
-    if (!formData.dateOfBirth) {
-      newErrors.dateOfBirth = 'Date of Birth is required';
-    }
-    
-    if (!formData.phoneNumber.trim()) {
-      newErrors.phoneNumber = 'Phone Number is required';
-    }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
-    }
-    
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
-    }
-    
-    // For CREATE mode, validate servicePackageId
+    // For CREATE mode with existing patient, only validate testType (patient data is auto-filled and read-only)
     if (mode === 'create') {
-      if (!formData.servicePackageId) {
-        newErrors.servicePackageId = 'Service Package is required';
+      if (!formData.testType.trim()) {
+        newErrors.testType = 'Test Type is required';
       }
     }
     
-    // For EDIT mode, validate age
+    // For CREATE_NEW_PATIENT mode, validate all fields (all fields are editable)
+    if (mode === 'create_new_patient') {
+      if (!formData.identifyNumber.trim()) {
+        newErrors.identifyNumber = 'Identify Number is required';
+      }
+      
+      if (!formData.patientName.trim()) {
+        newErrors.patientName = 'Patient Name is required';
+      }
+      
+      if (!formData.dateOfBirth || !dayjs(formData.dateOfBirth).isValid()) {
+        newErrors.dateOfBirth = 'Date of Birth is required';
+      }
+      
+      if (!formData.phoneNumber.trim()) {
+        newErrors.phoneNumber = 'Phone Number is required';
+      }
+      
+      if (!formData.email.trim()) {
+        newErrors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Invalid email format';
+      }
+      
+      if (!formData.address.trim()) {
+        newErrors.address = 'Address is required';
+      }
+      
+      if (!formData.testType.trim()) {
+        newErrors.testType = 'Test Type is required';
+      }
+    }
+    
+    // For EDIT mode, validate all fields
     if (mode === 'edit') {
+      if (!formData.identifyNumber.trim()) {
+        newErrors.identifyNumber = 'Identify Number is required';
+      }
+      
+      if (!formData.patientName.trim()) {
+        newErrors.patientName = 'Patient Name is required';
+      }
+      
+      if (!formData.dateOfBirth || !dayjs(formData.dateOfBirth).isValid()) {
+        newErrors.dateOfBirth = 'Date of Birth is required';
+      }
+      
+      if (!formData.phoneNumber.trim()) {
+        newErrors.phoneNumber = 'Phone Number is required';
+      }
+      
+      if (!formData.email.trim()) {
+        newErrors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Invalid email format';
+      }
+      
+      if (!formData.address.trim()) {
+        newErrors.address = 'Address is required';
+      }
+      
       const ageNum = parseInt(formData.age);
       if (!formData.age || isNaN(ageNum) || ageNum <= 0) {
         newErrors.age = 'Valid age is required';
@@ -141,6 +253,34 @@ export default function TestOrderModal({
     }
   };
 
+  const handleDateChange = (newDate) => {
+    setFormData(prev => ({
+      ...prev,
+      dateOfBirth: newDate
+    }));
+    
+    if (errors.dateOfBirth) {
+      setErrors(prev => ({
+        ...prev,
+        dateOfBirth: ''
+      }));
+    }
+  };
+
+  const handleTestTypeChange = (event, newValue) => {
+    setFormData(prev => ({
+      ...prev,
+      testType: newValue || ''
+    }));
+    
+    if (errors.testType) {
+      setErrors(prev => ({
+        ...prev,
+        testType: ''
+      }));
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       return;
@@ -150,26 +290,26 @@ export default function TestOrderModal({
     try {
       let submitData;
       
-      if (mode === 'create') {
-        // CREATE: all patient info + testType (servicePackageId) + priority + note
+      if (mode === 'create' || mode === 'create_new_patient') {
+        // CREATE: Use the exact API format requested
         submitData = {
-          identifyNumber: formData.identifyNumber.trim(),
           fullName: formData.patientName.trim(),
-          dateOfBirth: formData.dateOfBirth,
+          dateOfBirth: formData.dateOfBirth ? dayjs(formData.dateOfBirth).format('YYYY-MM-DD') : '',
           gender: formData.gender,
           phoneNumber: formData.phoneNumber.trim(),
           email: formData.email.trim(),
           address: formData.address.trim(),
-          testType: formData.servicePackageId, // Map servicePackageId to testType
+          testType: mapTestTypeForBackend(formData.testType.trim()), // Map to backend test type (always CBC for demo)
           priority: formData.priority,
-          note: formData.note.trim()
+          note: formData.note.trim(),
+          identifyNumber: formData.identifyNumber.trim()
         };
       } else {
         // EDIT: full patient info + priority + note + status
         submitData = {
           identifyNumber: formData.identifyNumber.trim(),
           patientName: formData.patientName.trim(),
-          dateOfBirth: formData.dateOfBirth,
+          dateOfBirth: formData.dateOfBirth ? dayjs(formData.dateOfBirth).format('YYYY-MM-DD') : '',
           age: parseInt(formData.age),
           gender: formData.gender,
           address: formData.address.trim(),
@@ -182,6 +322,12 @@ export default function TestOrderModal({
       }
 
       console.log(`${mode.toUpperCase()} payload:`, submitData);
+      console.log('Original formData.identifyNumber:', formData.identifyNumber);
+      
+      // Log the test type mapping for debugging
+      if (mode === 'create' || mode === 'create_new_patient') {
+        console.log(`Test type mapping: "${formData.testType}" -> "${mapTestTypeForBackend(formData.testType)}"`);
+      }
       await onSubmit(submitData);
       onClose();
     } catch (error) {
@@ -213,254 +359,337 @@ export default function TestOrderModal({
   if (!isOpen) return null;
 
   return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"
           onClick={onClose}
         />
         
-        <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden animate-fade-in-up border border-gray-100">
           {/* Header */}
-          <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b border-gray-200 z-10">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                {mode === 'create' ? 'Create New Test Order' : 'Edit Test Order'}
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {mode === 'edit' ? `Order ID: ${initialData?.testOrderId}` : 'Fill in the information below'}
-              </p>
+          <div className="sticky top-0 bg-gradient-to-r from-blue-50 via-white to-purple-50 flex items-center justify-between p-8 border-b border-gray-100 z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  {mode === 'create' ? 'Create New Test Order' : 
+                   mode === 'create_new_patient' ? 'New Patient Test Order' : 
+                   'Edit Test Order'}
+                </h2>
+                <p className="text-sm text-gray-500 mt-1 font-medium">
+                  {mode === 'edit' ? `Order ID: ${initialData?.testOrderId}` : 
+                   mode === 'create_new_patient' ? 'Complete patient information and test requirements' :
+                   'Configure test parameters for existing patient'}
+                </p>
+              </div>
             </div>
-            <button
+            <IconButton
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              sx={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 3, 
+                bgcolor: 'grey.100', 
+                '&:hover': { 
+                  bgcolor: 'grey.200', 
+                  transform: 'scale(1.05)' 
+                } 
+              }}
             >
-              <X className="w-6 h-6" />
-            </button>
+              <X size={20} />
+            </IconButton>
           </div>
 
           {/* Body */}
-          <div className="p-6">
+          <div className="p-8 bg-gradient-to-br from-gray-50/30 via-white to-blue-50/20 overflow-y-auto max-h-[calc(92vh-180px)]">
             {errors.submit && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-red-700">{errors.submit}</p>
-                </div>
-              </div>
+              <Box sx={{ mb: 3 }}>
+                <Alert severity="error" variant="filled" sx={{ borderRadius: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Submission Error
+                  </Typography>
+                  <Typography variant="body2">
+                    {errors.submit}
+                  </Typography>
+                </Alert>
+              </Box>
             )}
 
-            <div className="space-y-6">
-              {/* Patient Information Section - Show for both CREATE and EDIT modes */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Patient Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Identify Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
+            <div className="space-y-8">
+              {/* Patient Information Section */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800">
+                        Patient Information
+                      </h3>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {mode === 'create' && 'Auto-filled from selected patient'}
+                        {mode === 'create_new_patient' && 'Enter complete patient details'}
+                        {mode === 'edit' && 'Patient identification details'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+                    gap: 3 
+                  }}>
+                    <TextField
                       name="identifyNumber"
+                      label="Identify Number"
                       value={formData.identifyNumber}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.identifyNumber ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      required
+                      fullWidth
+                      variant="outlined"
                       placeholder="e.g., 079203004567"
+                      disabled={isPatientFieldReadOnly()}
+                      error={!!errors.identifyNumber}
+                      helperText={errors.identifyNumber}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          '&:hover fieldset': {
+                            borderColor: isPatientFieldReadOnly() ? 'rgba(0, 0, 0, 0.23)' : 'primary.main',
+                          },
+                        },
+                      }}
                     />
-                    {errors.identifyNumber && (
-                      <p className="text-sm text-red-600 mt-1">{errors.identifyNumber}</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Patient Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
+                    <TextField
                       name="patientName"
+                      label="Patient Name"
                       value={formData.patientName}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.patientName ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      required
+                      fullWidth
+                      variant="outlined"
                       placeholder="Enter patient name"
+                      disabled={isPatientFieldReadOnly()}
+                      error={!!errors.patientName}
+                      helperText={errors.patientName}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        },
+                      }}
                     />
-                    {errors.patientName && (
-                      <p className="text-sm text-red-600 mt-1">{errors.patientName}</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Date of Birth <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfBirth"
+                    <DatePicker
+                      label="Date of Birth *"
                       value={formData.dateOfBirth}
-                      onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      onChange={handleDateChange}
+                      disabled={isPatientFieldReadOnly()}
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          variant: 'outlined',
+                          error: !!errors.dateOfBirth,
+                          helperText: errors.dateOfBirth,
+                          sx: {
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2,
+                            },
+                          },
+                        },
+                      }}
+                      format="MM/DD/YYYY"
                     />
-                    {errors.dateOfBirth && (
-                      <p className="text-sm text-red-600 mt-1">{errors.dateOfBirth}</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Gender <span className="text-red-500">*</span>
-                    </label>
-                    <select
+                    <TextField
                       name="gender"
+                      label="Gender"
                       value={formData.gender}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      fullWidth
+                      select
+                      variant="outlined"
+                      disabled={isPatientFieldReadOnly()}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        },
+                      }}
                     >
                       {genders.map(gender => (
                         <option key={gender} value={gender}>
                           {gender}
                         </option>
                       ))}
-                    </select>
-                  </div>
+                    </TextField>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="tel"
+                    <TextField
                       name="phoneNumber"
+                      label="Phone Number"
                       value={formData.phoneNumber}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      required
+                      fullWidth
+                      variant="outlined"
                       placeholder="e.g., 0909123456"
+                      disabled={isPatientFieldReadOnly()}
+                      error={!!errors.phoneNumber}
+                      helperText={errors.phoneNumber}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        },
+                      }}
                     />
-                    {errors.phoneNumber && (
-                      <p className="text-sm text-red-600 mt-1">{errors.phoneNumber}</p>
-                    )}
-                  </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.email ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="example@email.com"
-                    />
-                    {errors.email && (
-                      <p className="text-sm text-red-600 mt-1">{errors.email}</p>
-                    )}
-                  </div>
+                    <Box sx={{ gridColumn: { md: 'span 2' } }}>
+                      <TextField
+                        name="email"
+                        label="Email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        required
+                        fullWidth
+                        variant="outlined"
+                        placeholder="example@email.com"
+                        disabled={isPatientFieldReadOnly()}
+                        error={!!errors.email}
+                        helperText={errors.email}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    </Box>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.address ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter full address"
-                    />
-                    {errors.address && (
-                      <p className="text-sm text-red-600 mt-1">{errors.address}</p>
-                    )}
-                  </div>
+                    <Box sx={{ gridColumn: { md: 'span 2' } }}>
+                      <TextField
+                        name="address"
+                        label="Address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        required
+                        fullWidth
+                        variant="outlined"
+                        placeholder="Enter full address"
+                        disabled={isPatientFieldReadOnly()}
+                        error={!!errors.address}
+                        helperText={errors.address}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
                 </div>
               </div>
 
               {/* Order Details Section */}
               <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h3>
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Service Package - Only for CREATE */}
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Order Details
                   {mode === 'create' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Test Type (Service Package) <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        name="servicePackageId"
-                        value={formData.servicePackageId}
-                        onChange={handleChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          errors.servicePackageId ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      >
-                        <option value="">Select a service package</option>
-                        {servicePackages.map(pkg => (
-                          <option key={pkg.id} value={pkg.id}>
-                            {pkg.name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.servicePackageId && (
-                        <p className="text-sm text-red-600 mt-1">{errors.servicePackageId}</p>
-                      )}
-                    </div>
+                    <span className="text-sm font-normal text-gray-500 ml-2">(Manual input required)</span>
                   )}
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Test Type */}
+                  <Box>
+                    <Autocomplete
+                      options={testTypes}
+                      value={formData.testType || null}
+                      onChange={handleTestTypeChange}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Test Type"
+                          required
+                          variant="outlined"
+                          placeholder="Select a test type"
+                          error={!!errors.testType}
+                          helperText={errors.testType}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2,
+                            },
+                          }}
+                        />
+                      )}
+                      sx={{ width: '100%' }}
+                    />
+                  </Box>
 
                   {/* Priority */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Priority <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-4">
-                      {priorities.map(priority => (
-                        <label key={priority} className="flex items-center cursor-pointer">
-                          <input
-                            type="radio"
-                            name="priority"
+                  <Box>
+                    <FormControl component="fieldset" required>
+                      <FormLabel component="legend" sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 500, color: 'text.primary' }}>
+                        Priority <span style={{ color: '#ef4444' }}>*</span>
+                      </FormLabel>
+                      <RadioGroup
+                        row
+                        name="priority"
+                        value={formData.priority}
+                        onChange={handleChange}
+                        sx={{ gap: 2 }}
+                      >
+                        {priorities.map(priority => (
+                          <FormControlLabel
+                            key={priority}
                             value={priority}
-                            checked={formData.priority === priority}
-                            onChange={handleChange}
-                            className="mr-2"
+                            control={<Radio size="small" />}
+                            label={
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 500,
+                                  color: priority === 'STAT' ? '#dc2626' :
+                                         priority === 'Urgent' ? '#ea580c' :
+                                         '#374151'
+                                }}
+                              >
+                                {priority}
+                              </Typography>
+                            }
                           />
-                          <span className={`text-sm font-medium ${
-                            priority === 'STAT' ? 'text-red-600' :
-                            priority === 'Urgent' ? 'text-orange-600' :
-                            'text-gray-700'
-                          }`}>
-                            {priority}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </Box>
 
                   {/* Note */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Note
-                    </label>
-                    <textarea
+                  <Box>
+                    <TextField
                       name="note"
+                      label="Note"
                       value={formData.note}
                       onChange={handleChange}
+                      fullWidth
+                      multiline
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      variant="outlined"
                       placeholder="Enter any additional notes..."
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        },
+                      }}
                     />
-                  </div>
+                  </Box>
                 </div>
               </div>
             </div>
@@ -470,36 +699,43 @@ export default function TestOrderModal({
           <div className="sticky bottom-0 bg-gray-50 flex items-center justify-between px-6 py-4 border-t border-gray-200">
             <div>
               {mode === 'edit' && (
-                <button
-                  type="button"
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<Trash2 size={16} />}
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   disabled={loading}
+                  sx={{ borderRadius: 2 }}
                 >
-                  <Trash2 className="w-4 h-4" />
                   Delete
-                </button>
+                </Button>
               )}
             </div>
             
             <div className="flex items-center gap-3">
-              <button
-                type="button"
+              <Button
+                variant="outlined"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 disabled={loading}
+                sx={{ borderRadius: 2, color: 'grey.700', borderColor: 'grey.300' }}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={loading ? null : <Save size={16} />}
                 onClick={handleSubmit}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
+                sx={{ borderRadius: 2, minWidth: 120 }}
               >
-                <Save className="w-4 h-4" />
-                {loading ? 'Saving...' : mode === 'create' ? 'Create Order' : 'Save Changes'}
-              </button>
+                {loading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <RingSpinner size="small" text="" theme="blue" />
+                  </Box>
+                ) : (
+                  mode === 'create' ? 'Create Order' : 'Save Changes'
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -547,5 +783,6 @@ export default function TestOrderModal({
         </div>
       )}
     </div>
+    </LocalizationProvider>
   );
 }

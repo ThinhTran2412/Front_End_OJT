@@ -3,23 +3,52 @@ import api from "./api";
 // Create Test Order
 export const createTestOrder = async (data) => {
   try {
+    // Validate required fields
+    if (!data.fullName || !data.fullName.trim()) {
+      throw new Error('Full name is required');
+    }
+    if (!data.testType || !data.testType.trim()) {
+      throw new Error('Test type is required');
+    }
+    
+    // Check if identifyNumber exists and handle encrypted values
+    let processedIdentifyNumber = '';
+    if (data.identifyNumber && data.identifyNumber.trim()) {
+      const identifyNum = data.identifyNumber.trim();
+      // If it looks encrypted (contains = or +), log warning but allow it
+      if (identifyNum.includes('=') || identifyNum.includes('+') || identifyNum.length > 20) {
+        console.warn('Identify number appears to be encrypted:', identifyNum);
+        processedIdentifyNumber = identifyNum; // Use as-is for encrypted values
+      } else {
+        processedIdentifyNumber = identifyNum; // Use as-is for normal values
+      }
+    }
+
     const payload = {
-      fullName: data.fullName || '',
+      fullName: data.fullName.trim(),
       dateOfBirth: data.dateOfBirth || '',
       gender: data.gender || '',
       phoneNumber: data.phoneNumber || '',
       email: data.email || '',
       address: data.address || '',
-      testType: data.testType || '',
+      testType: data.testType.trim(),
       priority: data.priority || 'Normal',
       note: data.note || '',
-      identifyNumber: data.identifyNumber || ''
+      identifyNumber: processedIdentifyNumber
     };
+    
+    console.log('TestOrderService - Final payload being sent:', payload);
     
     const response = await api.post('/TestOrder', payload);
     return response.data;
   } catch (error) {
     console.error('Error creating test order:', error);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     throw error;
   }
 };
@@ -250,7 +279,7 @@ export const downloadExportedFile = async (jobId) => {
 // Get Service Packages
 export const getServicePackages = async () => {
   return [
-    { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', name: 'Complete Blood Count (CBC)' },
+    { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', name: 'CBC' },
     { id: '4fa85f64-5717-4562-b3fc-2c963f66afa7', name: 'Lipid Panel' },
     { id: '5fa85f64-5717-4562-b3fc-2c963f66afa8', name: 'Comprehensive Metabolic Panel' },
     { id: '6fa85f64-5717-4562-b3fc-2c963f66afa9', name: 'Thyroid Function Test' },

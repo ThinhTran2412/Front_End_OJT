@@ -2,16 +2,17 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import RoleFilters from '../../components/Role_Management/RoleFilters';
 import RoleTable from '../../components/Role_Management/RoleTable';
 import { message } from 'antd';
-import SearchBar from '../../components/General/SearchBar';
+import { Search, ChevronLeft, ChevronRight, Plus, Shield, AlertCircle, CheckCircle, X } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import api from '../../services/api';
 import { useRoleStore } from '../../store/roleStore';
 import { usePrivileges } from '../../hooks/usePrivileges';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import { LoadingOverlay, InlineLoader } from '../../components/Loading';
 
 export default function RoleManagement() {
-  const navigate = useNavigate(); // Navigate to Update Role page
+  const navigate = useNavigate();
 
   // Consolidated state management
   const [filters, setFilters] = useState({
@@ -25,6 +26,7 @@ export default function RoleManagement() {
   });
 
   const [total, setTotal] = useState(0);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const { roles, loading, error, setRoles, setLoading, setError } = useRoleStore();
   const { privileges, loading: privilegesLoading, error: privilegesError } = usePrivileges();
@@ -32,6 +34,16 @@ export default function RoleManagement() {
 
   // Debounce refs
   const filterTimeoutRef = useRef(null);
+
+  // Auto-hide success message
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   // Fetch roles
   const fetchRoles = useCallback(
@@ -105,12 +117,18 @@ export default function RoleManagement() {
   }, [isAuthenticated]);
 
   // Handlers
-  const handleSearch = useCallback((keyword) => {
+  const handleSearch = useCallback(() => {
     setFilters((prev) => ({
       ...prev,
-      searchKeyword: keyword,
       currentPage: 1,
       hasSearched: true,
+    }));
+  }, []);
+
+  const handleSearchInputChange = useCallback((e) => {
+    setFilters((prev) => ({
+      ...prev,
+      searchKeyword: e.target.value,
     }));
   }, []);
 
@@ -196,7 +214,6 @@ export default function RoleManagement() {
     }));
   }, []);
 
-  // Add: handler for Edit button
   const handleEditRole = useCallback(
     (roleId) => {
       navigate(`/role-management/update/${roleId}`);
@@ -204,23 +221,23 @@ export default function RoleManagement() {
     [navigate]
   );
 
-  // Delete role handler (show notification instead of redirecting)
+  const handleCreateRole = useCallback(() => {
+    navigate('/role-management/create');
+  }, [navigate]);
+
   const handleDeleteRole = useCallback(
     async (roleId) => {
       try {
         const res = await api.delete(`/Roles/${roleId}`);
         if (res.status === 200 || res.status === 204) {
-          message.success('Deleted role successfully');
+          setSuccessMessage('Role deleted successfully!');
         } else {
           message.warning('Delete request sent, please refresh to verify');
         }
       } catch (error) {
         console.error('Error deleting role:', error);
-        message.error(
-          error.response?.data?.message || 'Failed to delete role. Please try again.'
-        );
+        setError(error.response?.data?.message || 'Failed to delete role. Please try again.');
       } finally {
-        // Always refresh current list
         fetchRoles(filters);
       }
     },
@@ -236,98 +253,160 @@ export default function RoleManagement() {
 
   return (
     <DashboardLayout>
-      <style>{`
-        .privilege-dropdown .ant-dropdown-menu {
-          max-height: 300px !important;
-          overflow-y: auto !important;
-          padding: 4px 0 !important;
-        }
-      `}</style>
-
-      <div className="w-full">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Role Management</h1>
-
-{/* Privileges Loading Message */}
-{privilegesLoading && (
-  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-    <div className="flex items-center">
-      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-      <p className="text-blue-800 text-sm">Loading privileges...</p>
-    </div>
-  </div>
-)}
-
-{/* Privileges Error Message */}
-{privilegesError && (
-  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-    <div className="flex items-center justify-between">
-      <svg className="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-        <path
-          fillRule="evenodd"
-          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.6A1.75 1.75 0 0116.518 17H3.482a1.75 1.75 0 01-1.743-2.3l6.518-11.6zM10 12a.75.75 0 100 1.5A.75.75 0 0010 12zm0-5.5a.75.75 0 00-.75.75v2.5a.75.75 0 001.5 0v-2.5A.75.75 0 0010 6.5z"
-          clipRule="evenodd"
-        />
-      </svg>
-      <p className="text-yellow-700 text-sm">Error loading privileges.</p>
-    </div>
-  </div>
-)}
-
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
-            <div className="w-full lg:w-[550px]">
-              <SearchBar
-                placeholder="Search roles..."
-                value={filters.searchKeyword}
-                onSearch={handleSearch}
-                showSearchButton={true}
-                onClear={handleClearSearch}
-                className="w-full"
-              />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        {/* Main Container */}
+        <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
+          {/* Header Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-white to-gray-50/30">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 animate-slide-in-left">
+                <div className="w-11 h-11 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Role Management</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">Manage user roles and permissions</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end animate-slide-in-right">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Roles</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                    {total.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-            {(filters.searchKeyword || filters.selectedPrivileges.length > 0) && (
-              <button
-                onClick={handleClearAll}
-                className="px-5 py-3 text-base text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200 flex items-center space-x-2 whitespace-nowrap"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          </div>
+
+          {/* Search and Filter Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+            <div className="flex flex-col gap-4">
+              {/* Search Row */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-72 group">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-purple-500 transition-colors" />
+                    <input
+                      type="text"
+                      value={filters.searchKeyword}
+                      onChange={handleSearchInputChange}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="Search roles by name, code, or description"
+                      className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleClearSearch}
+                      className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 font-medium border border-transparent hover:border-gray-200"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSearch}
+                      disabled={loading}
+                      className="px-5 py-2.5 text-sm bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md disabled:shadow-none"
+                    >
+                      {loading ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleCreateRole}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Role
+                </button>
+              </div>
+
+              {/* Privilege Filter Row */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Filter by Privileges:</span>
+                <div className="flex-1 max-w-md">
+                  <RoleFilters
+                    selectedPrivileges={filters.selectedPrivileges}
+                    privileges={privileges}
+                    privilegesLoading={privilegesLoading}
+                    onPrivilegeFilter={handlePrivilegeFilter}
+                    onClearFilters={handleClearFilters}
+                    compact={true}
                   />
-                </svg>
-                <span>Clear All</span>
+                </div>
+                {(filters.searchKeyword || filters.selectedPrivileges.length > 0) && (
+                  <button
+                    onClick={handleClearAll}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium border border-red-200 hover:border-red-300"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className="border-b border-green-200/60 bg-gradient-to-r from-green-50 to-emerald-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-sm text-green-800 flex-1 font-medium">{successMessage}</p>
+              <button 
+                onClick={() => setSuccessMessage('')}
+                className="text-green-600 hover:text-green-800 hover:bg-green-100 rounded-full p-1 transition-all duration-200"
+              >
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="border-b border-red-200/60 bg-gradient-to-r from-red-50 to-rose-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <p className="text-sm text-red-800 flex-1 font-medium">{error}</p>
+            </div>
+          )}
+
+          {/* Privileges Loading/Error Messages */}
+          {privilegesLoading && (
+            <div className="border-b border-blue-200/60 bg-gradient-to-r from-blue-50 to-blue-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <InlineLoader size="small" text="" theme="blue" centered={false} />
+              <p className="text-sm text-blue-800 font-medium">Loading privileges...</p>
+            </div>
+          )}
+
+          {privilegesError && (
+            <div className="border-b border-yellow-200/60 bg-gradient-to-r from-yellow-50 to-yellow-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <p className="text-sm text-yellow-800 font-medium">Error loading privileges.</p>
+            </div>
+          )}
+
+          {/* Table Section */}
+          <div className="overflow-hidden">
+            <RoleTable
+              roles={roles}
+              loading={loading}
+              sortBy={filters.sortBy}
+              sortDesc={filters.sortDesc}
+              currentPage={filters.currentPage}
+              pageSize={filters.pageSize}
+              total={total}
+              onTableChange={handleTableChange}
+              onPaginationChange={handlePaginationChange}
+              onEditRole={handleEditRole}
+              onDeleteRole={handleDeleteRole}
+            />
           </div>
         </div>
-
-        {/* Filters + Table */}
-        <RoleFilters
-          selectedPrivileges={filters.selectedPrivileges}
-          privileges={privileges}
-          privilegesLoading={privilegesLoading}
-          onPrivilegeFilter={handlePrivilegeFilter}
-          onClearFilters={handleClearFilters}
-        />
-
-        <RoleTable
-          roles={roles}
-          loading={loading}
-          sortBy={filters.sortBy}
-          sortDesc={filters.sortDesc}
-          currentPage={filters.currentPage}
-          pageSize={filters.pageSize}
-          total={total}
-          onTableChange={handleTableChange}
-          onPaginationChange={handlePaginationChange}
-          onEditRole={handleEditRole} // Pass Edit callback
-          onDeleteRole={handleDeleteRole} // Pass Delete callback (optional)
-        />
       </div>
     </DashboardLayout>
   );

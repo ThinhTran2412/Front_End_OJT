@@ -4,6 +4,7 @@ import { useEventLogs } from '../../hooks/useEventLogs';
 import { usePagination } from '../../hooks/usePagination';
 import EventLogItem from './EventLogItem';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import { InlineLoader } from '../Loading';
 
 export default function EventLogs() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,18 +39,45 @@ export default function EventLogs() {
 
   const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
+  // Format action label for display
+  const formatActionLabel = (action) => {
+    switch (action) {
+      case 'ADD':
+      case 'ADDED':
+      case 'Add':
+      case 'Added': return 'Add';
+      case 'UPDATE':
+      case 'UPDATED':
+      case 'Update':
+      case 'Updated': return 'Update';
+      case 'DELETE':
+      case 'DELETED':
+      case 'Delete':
+      case 'Deleted': return 'Delete';
+      case 'MODIFY':
+      case 'MODIFIED':
+      case 'Modify':
+      case 'Modified': return 'Modify';
+      default: return action;
+    }
+  };
+
   // Get unique actions and entities for filter dropdowns
   const uniqueActions = [...new Set(eventLogs?.map(log => log.action) || [])];
   const uniqueEntities = [...new Set(eventLogs?.map(log => log.entityName) || [])];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading event logs...</p>
+      <DashboardLayout>
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <InlineLoader 
+            text="Loading event logs..." 
+            size="large" 
+            theme="blue" 
+            centered={true}
+          />
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -69,7 +97,7 @@ export default function EventLogs() {
     <DashboardLayout>
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -158,7 +186,7 @@ export default function EventLogs() {
             >
               <option value="ALL">All Actions</option>
               {uniqueActions.map(action => (
-                <option key={action} value={action}>{action}</option>
+                <option key={action} value={action}>{formatActionLabel(action)}</option>
               ))}
             </select>
           </div>
@@ -200,7 +228,7 @@ export default function EventLogs() {
       </div>
 
       {/* Event Logs List */}
-      <div className="p-6">
+      <div className="p-4">
         {paginatedLogs.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">📋</div>
@@ -237,7 +265,7 @@ export default function EventLogs() {
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {paginatedLogs.map((log, index) => (
               <div key={log.id} className="transform transition-all duration-300 hover:scale-[1.02]">
                 <EventLogItem log={log} />

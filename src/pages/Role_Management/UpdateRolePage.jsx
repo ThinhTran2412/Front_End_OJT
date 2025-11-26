@@ -4,6 +4,7 @@ import { RoleService } from "../../services/RoleService";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { usePrivileges } from "../../hooks/usePrivileges";
 import { Select } from "antd";
+import { InlineLoader } from '../../components/Loading';
 
 export default function UpdateRolePage() {
   const { id } = useParams();
@@ -184,10 +185,12 @@ export default function UpdateRolePage() {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-gray-50 py-4 w-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading role data...</p>
-          </div>
+          <InlineLoader 
+            text="Loading role data" 
+            size="large" 
+            theme="purple" 
+            centered={true}
+          />
         </div>
       </DashboardLayout>
     );

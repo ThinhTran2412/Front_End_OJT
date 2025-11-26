@@ -152,9 +152,10 @@ export const getTestResultsByTestOrderId = async (testOrderId) => {
 /**
  * Process test results from Simulator for a specific test order
  * @param {string} testOrderId - The test order ID
+ * @param {string} testType - The test type (default: 'CBC')
  * @returns {Promise<{success: boolean, message?: string}>}
  */
-export const processFromSimulator = async (testOrderId) => {
+export const processFromSimulator = async (testOrderId, testType = 'CBC') => {
   try {
     if (!testOrderId) {
       throw new Error('Test order ID is required');
@@ -170,8 +171,9 @@ export const processFromSimulator = async (testOrderId) => {
       throw new Error('Invalid test order ID format');
     }
 
-    const url = `/TestResult/process-from-simulator/${testOrderIdStr}`;
-    console.log('Processing test results from simulator:', { url, testOrderId: testOrderIdStr });
+    // Use query parameters instead of path parameters
+    const url = `/TestResult/process-from-simulator?testOrderId=${testOrderIdStr}&testType=${testType}`;
+    console.log('Processing test results from simulator:', { url, testOrderId: testOrderIdStr, testType });
 
     const response = await api.post(url);
     

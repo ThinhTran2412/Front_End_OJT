@@ -38,9 +38,22 @@ export default function EventLogItem({ log }) {
 
   const getActionStyle = (action) => {
     switch (action) {
-      case 'ADDED': return { color: 'text-green-600', bgColor: 'bg-green-100', icon: '➕', label: 'Added' };
-      case 'UPDATED': return { color: 'text-blue-600', bgColor: 'bg-blue-100', icon: '✏️', label: 'Updated' };
-      case 'DELETED': return { color: 'text-red-600', bgColor: 'bg-red-100', icon: '🗑️', label: 'Deleted' };
+      case 'Add': 
+      case 'Added':
+      case 'ADD':
+      case 'ADDED': return { color: 'text-green-600', bgColor: 'bg-green-100', icon: '➕', label: 'Add' };
+      case 'Update':
+      case 'Updated':
+      case 'UPDATE':
+      case 'UPDATED': return { color: 'text-blue-600', bgColor: 'bg-blue-100', icon: '✏️', label: 'Update' };
+      case 'Delete':
+      case 'Deleted':
+      case 'DELETE':
+      case 'DELETED': return { color: 'text-red-600', bgColor: 'bg-red-100', icon: '🗑️', label: 'Delete' };
+      case 'Modify':
+      case 'Modified':
+      case 'MODIFY':
+      case 'MODIFIED': return { color: 'text-yellow-600', bgColor: 'bg-yellow-100', icon: '🔧', label: 'Modify' };
       default: return { color: 'text-gray-600', bgColor: 'bg-gray-100', icon: '📝', label: action };
     }
   };
@@ -86,7 +99,7 @@ export default function EventLogItem({ log }) {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
      {/* Header */}
 <div 
-  className="p-4 cursor-pointer"
+  className="px-4 py-4 cursor-pointer"
   onClick={() => setIsExpanded(!isExpanded)}
 >
   <div className="flex items-center justify-between">
@@ -94,7 +107,7 @@ export default function EventLogItem({ log }) {
     <div className="grid grid-cols-3 gap-x-8 flex-shrink-0 w-[500px]">
       {/* Action Badge */}
       <div className="flex items-center">
-        <div className={`px-3 py-1 rounded-full text-sm font-medium ${actionStyle.bgColor} ${actionStyle.color}`}>
+        <div className={`px-4 py-2 rounded-full text-sm font-semibold ${actionStyle.bgColor} ${actionStyle.color}`}>
           <span className="mr-1">{actionStyle.icon}</span>
           {actionStyle.label}
         </div>
@@ -140,7 +153,7 @@ export default function EventLogItem({ log }) {
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="border-t border-gray-200 p-4 bg-gray-50">
+        <div className="border-t border-gray-200 px-4 py-4 bg-gray-50">
           <div className="space-y-4">
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -150,7 +163,7 @@ export default function EventLogItem({ log }) {
               </div>
               <div>
                 <span className="font-medium text-gray-700">Action:</span>
-                <span className="ml-2 text-gray-900">{log.action}</span>
+                <span className="ml-2 text-gray-900">{actionStyle.label}</span>
               </div>
               <div>
                 <span className="font-medium text-gray-700">Entity:</span>

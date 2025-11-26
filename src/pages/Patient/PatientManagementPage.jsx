@@ -1,40 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronLeft, ChevronRight, Plus, Eye, AlertCircle, CheckCircle, X, ClipboardList } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Plus, Eye, AlertCircle, CheckCircle, X, Users } from 'lucide-react';
 import PatientService from '../../services/PatientService';
-import { createMedicalRecord } from '../../services/MedicalRecordService';
 import AddPatientModal from '../../components/modals/AddPatientModal';
 import DashboardLayout from 'src/layouts/DashboardLayout';
-import { useAuthStore } from '../../store/authStore';
+import { LoadingOverlay, InlineLoader } from '../../components/Loading';
 
-const decodeJWT = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Error decoding JWT:', error);
-    return null;
-  }
-};
 
-const resolveCreatedBy = (tokenPayload, user) => {
-  return (
-    tokenPayload?.email ||
-    tokenPayload?.Email ||
-    tokenPayload?.username ||
-    tokenPayload?.userName ||
-    user?.email ||
-    user?.userName ||
-    'System'
-  );
-};
 
 export default function PatientManagementPage() {
   const navigate = useNavigate();
@@ -42,7 +14,6 @@ export default function PatientManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
-  const [creatingRecordId, setCreatingRecordId] = useState(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,10 +25,6 @@ export default function PatientManagementPage() {
 
   // Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { accessToken, user } = useAuthStore();
-  const tokenPayload = accessToken && typeof accessToken === 'string' && accessToken.includes('.')
-    ? decodeJWT(accessToken)
-    : null;
 
   useEffect(() => {
     fetchPatients();
@@ -101,54 +68,6 @@ export default function PatientManagementPage() {
     }
   };
 
-  const handleCreateMedicalRecord = async (patient) => {
-    if (!patient?.patientId) {
-      setError('Invalid patient information. Please refresh and try again.');
-      return;
-    }
-
-    // Validate required fields
-    if (!patient.identifyNumber || !patient.fullName || !patient.dateOfBirth || !patient.gender) {
-      setError('Patient information is incomplete. Please ensure all required fields are filled.');
-      return;
-    }
-
-    try {
-      setCreatingRecordId(patient.patientId);
-      const createdBy = resolveCreatedBy(tokenPayload, user);
-
-      // Format dateOfBirth to YYYY-MM-DD format
-      let dateOfBirth = patient.dateOfBirth;
-      if (dateOfBirth) {
-        // If it's already in YYYY-MM-DD format, use it; otherwise convert
-        if (typeof dateOfBirth === 'string' && dateOfBirth.includes('T')) {
-          dateOfBirth = dateOfBirth.split('T')[0];
-        } else if (dateOfBirth instanceof Date) {
-          dateOfBirth = dateOfBirth.toISOString().split('T')[0];
-        }
-      }
-
-      await createMedicalRecord({
-        fullName: patient.fullName,
-        dateOfBirth: dateOfBirth,
-        gender: patient.gender,
-        phoneNumber: patient.phoneNumber || '',
-        email: patient.email || '',
-        address: patient.address || '',
-        identifyNumber: patient.identifyNumber,
-        createIAMUser: true,
-      });
-
-      const patientName = patient.fullName || `PAT-${String(patient.patientId).padStart(3, '0')}`;
-      setSuccessMessage(`Medical record for ${patientName} created successfully!`);
-      await fetchPatients();
-    } catch (err) {
-      console.error('Error creating medical record:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to create medical record. Please try again.');
-    } finally {
-      setCreatingRecordId(null);
-    }
-  };
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -246,263 +165,247 @@ export default function PatientManagementPage() {
 
   return (
     <DashboardLayout>
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center text-sm text-gray-600 mb-4">
-            <button 
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center hover:text-gray-900"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="font-medium">Back to list</span>
-            </button>
-            <span className="mx-2">/</span>
-            <button onClick={() => navigate('/dashboard')} className="hover:text-gray-900">
-              Home
-            </button>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900">Patients</span>
-          </div>
-          
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Patient Management</h1>
-              <p className="text-gray-600">Manage and view all registered patients in the laboratory system</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      {/* Main Container - Gộp tất cả vào một card, chiếm toàn bộ không gian */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
+          {/* Header Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-white to-gray-50/30">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 animate-slide-in-left">
+                <div className="w-11 h-11 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Patient Management</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">Manage and track patient records</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end animate-slide-in-right">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Patient</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                    {totalCount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-            <button 
-              onClick={handleAddPatient}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Patient
-            </button>
           </div>
-        </div>
 
-        {/* Success Message */}
-        {successMessage && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <div>
-              <p className="text-green-800 font-medium">Success</p>
-              <p className="text-green-600 text-sm">{successMessage}</p>
+          {/* Search Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                <div className="relative w-full sm:w-72 group">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    placeholder="Search by name, phone number, or email"
+                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleClearFilters}
+                    className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 font-medium border border-transparent hover:border-gray-200"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={handleSearch}
+                    disabled={loading}
+                    className="px-5 py-2.5 text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md disabled:shadow-none"
+                  >
+                    {loading ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={handleAddPatient}
+                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                Add Patient
+              </button>
             </div>
-            <button 
-              onClick={() => setSuccessMessage('')}
-              className="ml-auto text-green-600 hover:text-green-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
-        )}
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Search Patients
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="Search by name, Patient ID, phone number, or email"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          {/* Success Message */}
+          {successMessage && (
+            <div className="border-b border-green-200/60 bg-gradient-to-r from-green-50 to-emerald-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-sm text-green-800 flex-1 font-medium">{successMessage}</p>
+              <button 
+                onClick={() => setSuccessMessage('')}
+                className="text-green-600 hover:text-green-800 hover:bg-green-100 rounded-full p-1 transition-all duration-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="border-b border-red-200/60 bg-gradient-to-r from-red-50 to-rose-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <p className="text-sm text-red-800 flex-1 font-medium">{error}</p>
+            </div>
+          )}
+
+          {/* Table Section */}
+          <div className="overflow-hidden">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <InlineLoader 
+                  text="Loading patients" 
+                  size="large" 
+                  theme="blue" 
+                  centered={true}
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleClearFilters}
-                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-              >
-                Clear Filters
-              </button>
-              <span className="text-gray-600 text-sm">
-                Showing {totalCount.toLocaleString()} patients
-              </span>
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={loading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Searching...' : 'Apply Filters'}
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <div>
-              <p className="text-red-800 font-medium">Error</p>
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading patients...</p>
+            ) : patients.length === 0 ? (
+              <div className="text-center py-16 animate-fade-in">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-600 text-base font-medium">No patients found</p>
+                <p className="text-gray-400 text-sm mt-1">Try adjusting your search filters</p>
               </div>
-            </div>
-          ) : patients.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No patients found</p>
-              <p className="text-gray-400 text-sm mt-2">Try adjusting your search filters</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Patient ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Full Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date of Birth
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Age
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Gender
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Phone Number
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Address
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created At
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {patients.map((patient) => (
-                      <tr key={patient.patientId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          PAT-{String(patient.patientId).padStart(3, '0')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{patient.fullName}</div>
-                            <div className="text-sm text-gray-500">{patient.email}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(patient.dateOfBirth)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {patient.age}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            patient.gender === 'Male' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-pink-100 text-pink-800'
-                          }`}>
-                            {patient.gender}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {patient.phoneNumber}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={patient.address}>
-                          {patient.address}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div>
-                            <div className="text-xs text-gray-500">{formatDateTime(patient.createdAt)}</div>
-                            <div className="text-xs text-gray-400">by {patient.createdBy}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <button 
-                              onClick={() => handleViewDetail(patient)}
-                              className="flex items-center gap-1 bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 transition-colors"
-                            >
-                              <Eye className="w-4 h-4" />
-                              View Detail
-                            </button>
-                            <button
-                              onClick={() => handleCreateMedicalRecord(patient)}
-                              disabled={creatingRecordId === patient.patientId || loading}
-                              className="flex items-center gap-1 bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              <ClipboardList className="w-4 h-4" />
-                              {creatingRecordId === patient.patientId ? 'Creating...' : 'New Record'}
-                            </button>
-                          </div>
-                        </td>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Full Name
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-40">
+                          Date of Birth / Age
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-24">
+                          Gender
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-32">
+                          Phone Number
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Address
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Created At
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Action
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100/50">
+                      {patients.map((patient, index) => (
+                        <tr 
+                          key={patient.patientId} 
+                          className="hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-transparent transition-all duration-300 group animate-fade-in"
+                          style={{ animationDelay: `${index * 0.05}s` }}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{patient.fullName}</div>
+                              <div className="text-sm text-gray-500">{patient.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap w-40">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{formatDate(patient.dateOfBirth)}</div>
+                              <div className="text-sm text-gray-500">{patient.age} years old</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-24">
+                            <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
+                              patient.gender === 'Male' 
+                                ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200/50' 
+                                : 'bg-gradient-to-r from-pink-100 to-pink-50 text-pink-800 border border-pink-200/50'
+                            }`}>
+                              {patient.gender}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-32">
+                            {patient.phoneNumber}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={patient.address}>
+                            {patient.address}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div>
+                              <div className="text-xs text-gray-500">{formatDateTime(patient.createdAt)}</div>
+                              <div className="text-xs text-gray-400">by {patient.createdBy}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleViewDetail(patient)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-blue-50 to-blue-100/50 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-blue-200/50 hover:border-blue-300"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                View
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="bg-white px-6 py-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">Show</span>
+                {/* Pagination */}
+                <div className="border-t border-gray-200/80 px-6 py-4 bg-gradient-to-r from-gray-50/50 to-white">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className="font-medium">Show</span>
                     <select
                       value={pageSize}
                       onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200 shadow-sm hover:shadow-md font-medium"
                     >
                       <option value={10}>10</option>
                       <option value={25}>25</option>
                       <option value={50}>50</option>
                       <option value={100}>100</option>
                     </select>
-                    <span className="text-sm text-gray-700">entries per page</span>
+                    <span className="font-medium">entries</span>
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-700">
-                      Showing {totalCount > 0 ? ((currentPage - 1) * pageSize) + 1 : 0} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} entries
+                    <span className="text-sm text-gray-600 font-medium">
+                      {totalCount > 0 ? ((currentPage - 1) * pageSize) + 1 : 0} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()}
                     </span>
 
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={!hasPreviousPage || currentPage === 1}
-                        className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 border border-transparent hover:border-gray-200"
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                        <ChevronLeft className="w-4 h-4 text-gray-600" />
                       </button>
 
                       {renderPagination().map((page, index) => (
                         page === '...' ? (
-                          <span key={`ellipsis-${index}`} className="px-3 py-1 text-gray-500">...</span>
+                          <span key={`ellipsis-${index}`} className="px-2 text-gray-400 text-sm font-medium">...</span>
                         ) : (
                           <button
                             key={page}
                             onClick={() => handlePageChange(page)}
-                            className={`px-3 py-1 rounded transition-colors ${
+                            className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-200 font-semibold ${
                               currentPage === page
-                                ? 'bg-blue-600 text-white'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
+                                : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'
                             }`}
                           >
                             {page}
@@ -513,18 +416,18 @@ export default function PatientManagementPage() {
                       <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={!hasNextPage || currentPage === totalPages}
-                        className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 border border-transparent hover:border-gray-200"
                       >
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-4 h-4 text-gray-600" />
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            </>
-          )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
       <AddPatientModal
         isOpen={isAddModalOpen}

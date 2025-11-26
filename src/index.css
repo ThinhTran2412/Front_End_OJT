@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  * {
+    font-family: Arial, sans-serif;
+  }
+  
+  body {
+    font-family: Arial, sans-serif;
+  }
+  :root {
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --sidebar: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 5.9% 10%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
 /* Custom Animations */
 @keyframes fadeIn {
   from {
@@ -444,4 +474,166 @@ html {
   position: relative;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+/* Tremor Chart Colors Fix - Force colors to display correctly */
+/* Override all Recharts elements to ensure colors show */
+.recharts-wrapper svg {
+  overflow: visible;
+}
+
+/* Area Chart - Force green and yellow colors */
+.recharts-area path[fill="#22c55e"],
+.recharts-area path[fill="#10b981"],
+.recharts-area path[fill="#16a34a"],
+.recharts-area path[fill="#15803d"] {
+  fill: #22c55e !important;
+  stroke: #16a34a !important;
+  stroke-width: 2 !important;
+  opacity: 0.6 !important;
+}
+
+.recharts-area path[fill="#eab308"],
+.recharts-area path[fill="#fbbf24"],
+.recharts-area path[fill="#facc15"],
+.recharts-area path[fill="#ca8a04"] {
+  fill: #eab308 !important;
+  stroke: #ca8a04 !important;
+  stroke-width: 2 !important;
+  opacity: 0.6 !important;
+}
+
+/* Bar Chart - Force all bar colors */
+.recharts-bar-rectangle {
+  stroke-width: 0 !important;
+}
+
+.recharts-bar-rectangle[fill="#3b82f6"],
+.recharts-bar-rectangle[fill="#2563eb"],
+.recharts-bar-rectangle[fill="#1d4ed8"] {
+  fill: #3b82f6 !important;
+}
+
+.recharts-bar-rectangle[fill="#a855f7"],
+.recharts-bar-rectangle[fill="#9333ea"],
+.recharts-bar-rectangle[fill="#7e22ce"] {
+  fill: #a855f7 !important;
+}
+
+.recharts-bar-rectangle[fill="#22c55e"],
+.recharts-bar-rectangle[fill="#10b981"],
+.recharts-bar-rectangle[fill="#16a34a"] {
+  fill: #22c55e !important;
+}
+
+.recharts-bar-rectangle[fill="#eab308"],
+.recharts-bar-rectangle[fill="#fbbf24"],
+.recharts-bar-rectangle[fill="#facc15"] {
+  fill: #eab308 !important;
+}
+
+/* Donut Chart - Force all sector colors */
+.recharts-sector {
+  stroke: white !important;
+  stroke-width: 2 !important;
+}
+
+.recharts-sector[fill="#3b82f6"],
+.recharts-sector[fill="#2563eb"],
+.recharts-sector[fill="#1d4ed8"] {
+  fill: #3b82f6 !important;
+}
+
+.recharts-sector[fill="#a855f7"],
+.recharts-sector[fill="#9333ea"],
+.recharts-sector[fill="#7e22ce"] {
+  fill: #a855f7 !important;
+}
+
+.recharts-sector[fill="#22c55e"],
+.recharts-sector[fill="#10b981"],
+.recharts-sector[fill="#16a34a"] {
+  fill: #22c55e !important;
+}
+
+.recharts-sector[fill="#eab308"],
+.recharts-sector[fill="#fbbf24"],
+.recharts-sector[fill="#facc15"] {
+  fill: #eab308 !important;
+}
+
+.recharts-sector[fill="#6366f1"],
+.recharts-sector[fill="#4f46e5"],
+.recharts-sector[fill="#4338ca"] {
+  fill: #6366f1 !important;
+}
+
+.recharts-sector[fill="#ec4899"],
+.recharts-sector[fill="#f43f5e"],
+.recharts-sector[fill="#db2777"] {
+  fill: #ec4899 !important;
+}
+
+/* Force all paths and shapes to show colors */
+.recharts-layer path,
+.recharts-layer rect {
+  opacity: 1 !important;
+}
+
+/* Override any black fills */
+.recharts-layer path[fill="black"],
+.recharts-layer path[fill="#000"],
+.recharts-layer path[fill="#000000"],
+.recharts-bar-rectangle[fill="black"],
+.recharts-bar-rectangle[fill="#000"],
+.recharts-bar-rectangle[fill="#000000"],
+.recharts-sector[fill="black"],
+.recharts-sector[fill="#000"],
+.recharts-sector[fill="#000000"] {
+  fill: inherit !important;
+}
+
+/* Custom User Table Styling to match Patients Page */
+.custom-user-table .ant-table {
+  background: white;
+}
+
+.custom-user-table .ant-table-thead > tr > th {
+  background: linear-gradient(to right, #f9fafb, #f3f4f6) !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.05em !important;
+  color: #374151 !important;
+  padding: 16px !important;
+}
+
+.custom-user-table .ant-table-tbody > tr {
+  transition: all 0.3s ease !important;
+}
+
+.custom-user-table .ant-table-tbody > tr:hover {
+  background: linear-gradient(to right, rgba(59, 130, 246, 0.1), transparent) !important;
+}
+
+.custom-user-table .ant-table-tbody > tr > td {
+  padding: 16px !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5) !important;
+}
+
+.custom-user-table .ant-table-tbody > tr > td:first-child {
+  font-weight: 500;
+  color: #111827;
+}
+
+.custom-user-table .ant-btn-primary {
+  background: linear-gradient(to right, #3b82f6, #2563eb) !important;
+  border: none !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.custom-user-table .ant-btn-primary:hover {
+  background: linear-gradient(to right, #2563eb, #1d4ed8) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
 }

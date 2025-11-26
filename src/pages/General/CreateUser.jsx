@@ -265,28 +265,48 @@ export default function CreateUser() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 py-4">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-pastel-blue-lighter via-pastel-blue-light to-white relative overflow-hidden py-4">
+        {/* Animated Background */}
+        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+          <div 
+            className="absolute inset-0 animate-gradient opacity-20"
+            style={{
+              background: 'linear-gradient(-45deg, #99EBFF, #33D6FF, #00CCFF, #99EBFF)',
+              backgroundSize: '400% 400%'
+            }}
+          ></div>
+          <div className="absolute top-20 left-10 w-96 h-96 bg-pastel-blue/5 rounded-full blur-3xl animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pastel-blue-light/5 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+        </div>
+
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Create User Form */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 md:p-8">
+          <div className="glass-enhanced rounded-3xl shadow-2xl border-2 border-white/30 p-6 md:p-8">
             {/* Header */}
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">CREATE USER</h1>
-              <p className="text-gray-600 text-sm">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-4 shadow-lg">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              </div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">CREATE USER</h1>
+              <p className="text-gray-600 text-base">
                 Create a new user account with complete information
               </p>
             </div>
 
           {/* Success Message */}
           {successMessage && (
-            <div className="mb-4 p-3 border rounded text-sm bg-green-50 border-green-200 text-green-600">
+            <div className="mb-6 p-4 border-2 border-green-300 rounded-xl text-sm bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 shadow-lg animate-fade-in">
               <div className="flex items-center">
-                <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
                 <div>
-                  <p className="font-medium">{successMessage}</p>
-                  <p className="text-xs mt-1 text-green-500">
+                  <p className="font-semibold text-base">{successMessage}</p>
+                  <p className="text-sm mt-1 text-green-700">
                     You can now create another user or go back to dashboard.
                   </p>
                 </div>
@@ -296,28 +316,30 @@ export default function CreateUser() {
 
           {/* Error Message */}
           {errorMessage && (
-            <div className={`mb-4 p-3 border rounded text-sm ${
+            <div className={`mb-6 p-4 border-2 rounded-xl text-sm shadow-lg animate-shake ${
               errorType === 'conflict'
-                ? 'bg-red-100 border-red-300 text-red-800'
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 text-red-800'
                 : errorType === 'unauthorized'
-                ? 'bg-red-100 border-red-300 text-red-800'
-                : 'bg-red-50 border-red-200 text-red-600'
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-red-300 text-red-800'
+                : 'bg-gradient-to-r from-red-50 to-red-100 border-red-200 text-red-700'
               }`}>
               <div className="flex items-center">
                 {(errorType === 'conflict' || errorType === 'unauthorized') && (
-                  <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
                 )}
                 <div>
-                  <p className="font-medium">{errorMessage}</p>
+                  <p className="font-semibold text-base">{errorMessage}</p>
                   {errorType === 'conflict' && (
-                    <p className="text-xs mt-1 text-red-500">
+                    <p className="text-sm mt-1 text-red-700">
                       Please use a different email address.
                     </p>
                   )}
                   {errorType === 'unauthorized' && (
-                    <p className="text-xs mt-1 text-red-500">
+                    <p className="text-sm mt-1 text-red-700">
                       Redirecting to dashboard in 3 seconds...
                     </p>
                   )}
@@ -563,21 +585,36 @@ export default function CreateUser() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row gap-4 pt-8 border-t-2 border-gray-200">
               {/* Create Button */}
               <button
                 type="submit"
                 disabled={isLoading || loadingRoles}
-                className="flex-1 bg-custom-dark-blue text-white py-2 px-4 rounded-lg font-semibold hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
+                className="group flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg"
               >
-                {isLoading ? 'Creating User...' : 'Create User'}
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating User...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    Create User
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </span>
+                )}
               </button>
 
               {/* Cancel Button */}
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold border border-gray-300 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02]"
+                className="flex-1 bg-white text-gray-700 py-3 px-6 rounded-xl font-semibold border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-300 transform hover:scale-105 shadow-md"
               >
                 Cancel
               </button>

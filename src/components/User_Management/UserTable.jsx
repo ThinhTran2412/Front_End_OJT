@@ -1,4 +1,6 @@
 import { Table, Button } from 'antd';
+import { Users } from 'lucide-react';
+import { InlineLoader } from '../Loading';
 
 export default function UserTable({
   users,
@@ -102,19 +104,40 @@ export default function UserTable({
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-      <Table
-        columns={columns}
-        dataSource={tableData}
-        loading={loading}
-        rowKey={(row) => row.userId || row.id || row.email}
-        pagination={false}
-        onChange={onChange}
-        size="middle"
-        locale={{ emptyText: 'No Data' }}
-        // keep column widths stable and allow horizontal scroll when container is narrower
-        scroll={{ x: 1400 }}
-      />
-    </div>
+    <>
+      {loading ? (
+        <div className="flex justify-center items-center py-20">
+          <InlineLoader 
+            text="Loading users" 
+            size="large" 
+            theme="blue" 
+            centered={true}
+          />
+        </div>
+      ) : tableData.length === 0 ? (
+        <div className="text-center py-16 animate-fade-in">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Users className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-600 text-base font-medium">No users found</p>
+          <p className="text-gray-400 text-sm mt-1">Try adjusting your search filters</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table
+            columns={columns}
+            dataSource={tableData}
+            loading={false}
+            rowKey={(row) => row.userId || row.id || row.email}
+            pagination={false}
+            onChange={onChange}
+            size="middle"
+            locale={{ emptyText: 'No Data' }}
+            scroll={{ x: 1400 }}
+            className="custom-user-table"
+          />
+        </div>
+      )}
+    </>
   );
 }

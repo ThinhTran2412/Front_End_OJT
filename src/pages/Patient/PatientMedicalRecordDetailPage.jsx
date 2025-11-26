@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, User, Mail, Plus, ClipboardList, Edit } from 'lucide-react';
+import { ChevronLeft, User, Mail, Plus, ClipboardList, Edit, ChevronRight, FileText, Calendar, Clock, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { getAllMedicalRecords, createMedicalRecord } from '../../services/MedicalRecordService';
 import { createTestOrder, updateTestOrder, deleteTestOrder } from '../../services/TestOrderService';
+import { getAllPatients } from '../../services/PatientService';
 import TestOrderModal from '../../components/modals/TestOrderModal';
+import TestOrderDetailModal from '../../components/TestOrder_Management/TestOrderDetailModal';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { useAuthStore } from '../../store/authStore';
+import { InlineLoader } from '../../components/Loading';
 
 const decodeJWT = (token) => {
   try {
@@ -51,6 +54,11 @@ export default function PatientMedicalRecordDetailPage() {
     : null;
   const patientFromNavigation = location.state?.patient;
   
+  // Test Orders Pagination state
+  const [testOrdersPage, setTestOrdersPage] = useState(1);
+  const [testOrdersPageSize, setTestOrdersPageSize] = useState(3); // Hiển thị tối đa 3 test orders
+  const [allTestOrders, setAllTestOrders] = useState([]);
+  
   // Toast hook
   const { toasts, showToast, removeToast } = useToast();
   
@@ -58,6 +66,10 @@ export default function PatientMedicalRecordDetailPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  
+  // Test Order Detail Modal state
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
     if (patientId) {
@@ -68,7 +80,8 @@ export default function PatientMedicalRecordDetailPage() {
   const buildPatientDataFromRecord = (record) => {
     if (!record) return null;
 
-    return {
+    console.log('buildPatientDataFromRecord - input record:', record);
+    const patientData = {
       medicalRecordId: record.medicalRecordId,
       patientId: record.patientId,
       fullName: record.patientName,
@@ -82,9 +95,11 @@ export default function PatientMedicalRecordDetailPage() {
       gender: record.gender,
       phoneNumber: record.phoneNumber,
       address: record.address,
-      identifyNumber: record.identifyNumber, // May be encrypted from API
+      identifyNumber: '', // Medical record doesn't have identifyNumber, will be fetched separately
       testOrders: record.testOrders || []
     };
+    console.log('buildPatientDataFromRecord - output patientData:', patientData);
+    return patientData;
   };
 
   const buildPatientDataFromState = (patient, baseRecord) => {
@@ -139,10 +154,36 @@ export default function PatientMedicalRecordDetailPage() {
         recordsByName;
 
       const sortedRecords = candidateRecords.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      // Only get the latest record (1-1 relationship with patient)
       const latestRecord = sortedRecords[0];
-
       if (latestRecord) {
-        setPatientData(buildPatientDataFromRecord(latestRecord));
+        let patientRecord = buildPatientDataFromRecord(latestRecord);
+        
+        // Medical record doesn't have identifyNumber, fetch it from Patient API
+        try {
+          console.log('Fetching all patients to get identifyNumber for patientId:', patientRecord.patientId);
+          const allPatientsResponse = await getAllPatients();
+          console.log('All patients from API:', allPatientsResponse);
+          
+          // getAllPatients returns {patients: Array, totalCount, ...}, we need the patients array
+          const allPatients = allPatientsResponse.patients || allPatientsResponse;
+          console.log('Patients array:', allPatients);
+          
+          const matchingPatient = allPatients.find(p => p.patientId === patientRecord.patientId);
+          if (matchingPatient && matchingPatient.identifyNumber) {
+            patientRecord.identifyNumber = matchingPatient.identifyNumber;
+            console.log('Found matching patient with identifyNumber:', matchingPatient.identifyNumber);
+          } else {
+            console.warn('No matching patient found or identifyNumber missing for patientId:', patientRecord.patientId);
+          }
+        } catch (err) {
+          console.warn('Could not fetch patients data:', err);
+        }
+        
+        setPatientData(patientRecord);
+        // Store all test orders for pagination
+        setAllTestOrders(patientRecord.testOrders || []);
         return;
       }
 
@@ -150,10 +191,12 @@ export default function PatientMedicalRecordDetailPage() {
 
       if (fallbackPatient) {
         setPatientData(fallbackPatient);
+        setAllTestOrders([]);
         return;
       }
 
       setPatientData(null);
+      setAllTestOrders([]);
     } catch (err) {
       console.error('Error fetching medical records:', err);
       setError(err.response?.data?.message || err.message || 'Failed to load medical records');
@@ -222,9 +265,14 @@ export default function PatientMedicalRecordDetailPage() {
     }
   };
 
-  const handleCreateTestOrder = () => {
+  const handleCreateTestOrder = (medicalRecord = null) => {
     setModalMode('create');
-    setSelectedRecord(null);
+    // For create mode, we don't need selectedRecord - patientData is passed separately
+    if (medicalRecord) {
+      setSelectedRecord(medicalRecord);
+    } else {
+      setSelectedRecord(null); // Clear selected record for new test order
+    }
     setIsModalOpen(true);
   };
 
@@ -304,13 +352,85 @@ export default function PatientMedicalRecordDetailPage() {
   };
 
   const getStatusColor = (status) => {
-    const colors = {
-      'Completed': 'bg-green-100 text-green-800',
-      'Pending': 'bg-yellow-100 text-yellow-800',
-      'Cancelled': 'bg-red-100 text-red-800',
-      'Created': 'bg-blue-100 text-blue-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    if (status === 'Reviewed By AI') {
+      return 'bg-purple-100 text-purple-800';
+    }
+    if (status === 'Completed') {
+      return 'bg-green-100 text-green-800';
+    }
+    if (status === 'In Progress' || status === 'Processing') {
+      return 'bg-blue-100 text-blue-800';
+    }
+    if (status === 'Pending' || status === 'Created') {
+      return 'bg-yellow-100 text-yellow-800';
+    }
+    if (status === 'Cancelled') {
+      return 'bg-red-100 text-red-800';
+    }
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  // Test Orders Pagination logic
+  const totalTestOrders = allTestOrders.length;
+  const testOrdersTotalPages = Math.ceil(totalTestOrders / testOrdersPageSize);
+  const testOrdersStartIndex = (testOrdersPage - 1) * testOrdersPageSize;
+  const testOrdersEndIndex = testOrdersStartIndex + testOrdersPageSize;
+  const paginatedTestOrders = allTestOrders.slice(testOrdersStartIndex, testOrdersEndIndex);
+  const hasNextTestOrdersPage = testOrdersPage < testOrdersTotalPages;
+  const hasPreviousTestOrdersPage = testOrdersPage > 1;
+
+  const handleTestOrdersPageChange = (page) => {
+    if (page >= 1 && page <= testOrdersTotalPages) {
+      setTestOrdersPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleTestOrdersPageSizeChange = (newPageSize) => {
+    setTestOrdersPageSize(newPageSize);
+    setTestOrdersPage(1);
+  };
+
+  const renderTestOrdersPagination = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (testOrdersTotalPages <= maxVisiblePages) {
+      for (let i = 1; i <= testOrdersTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (testOrdersPage <= 3) {
+        pages.push(1, 2, 3, '...', testOrdersTotalPages);
+      } else if (testOrdersPage >= testOrdersTotalPages - 2) {
+        pages.push(1, '...', testOrdersTotalPages - 2, testOrdersTotalPages - 1, testOrdersTotalPages);
+      } else {
+        pages.push(1, '...', testOrdersPage - 1, testOrdersPage, testOrdersPage + 1, '...', testOrdersTotalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  const renderPagination = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+
+    return pages;
   };
 
   if (loading) {
@@ -394,186 +514,293 @@ export default function PatientMedicalRecordDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
         {/* Toast Container */}
         <ToastContainer toasts={toasts} removeToast={removeToast} />
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center text-sm text-gray-600 mb-6">
-            <button 
-              onClick={() => navigate('/patients')}
-              className="flex items-center hover:text-gray-900"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="font-medium">Back to list</span>
-            </button>
-            <span className="mx-2">/</span>
-            <button onClick={() => navigate('/dashboard')} className="hover:text-gray-900">Home</button>
-            <span className="mx-2">/</span>
-            <button onClick={() => navigate('/patients')} className="hover:text-gray-900">Patients</button>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900">{patientData.fullName}</span>
-          </div>
+        <div className="w-full">
+          {/* Main Container */}
+          <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
+            {/* Back Button - Above Header */}
+            <div className="border-b border-gray-200/80 px-6 py-3 bg-gray-50/30">
+              <button 
+                onClick={() => navigate('/patients')}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="font-medium text-sm">Back to Patients</span>
+              </button>
+            </div>
 
-          {/* Page Title */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Patient Medical Record</h1>
-            <button
-              onClick={handleCreateMedicalRecord}
-              disabled={isCreatingRecord || loading}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-4 h-4" />
-              {isCreatingRecord ? 'Creating...' : 'New Medical Record'}
-            </button>
-          </div>
-
-          {/* Patient Information Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-blue-600" />
+            {/* Header Section */}
+            <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-white to-gray-50/30">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 animate-slide-in-left">
+                  <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Medical Record Information</h1>
+                    <p className="text-xs text-gray-500 mt-0.5">Patient details and medical record</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Patient Information</h2>
-                  <p className="text-sm text-gray-500">Medical Record ID: {patientData.medicalRecordId}</p>
+                <div className="flex items-center gap-3 animate-slide-in-right">
+                  {patientData && !patientData.medicalRecordId && (
+                    <button
+                      onClick={handleCreateMedicalRecord}
+                      disabled={isCreatingRecord || loading}
+                      className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {isCreatingRecord ? 'Creating...' : 'Create Medical Record'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Full Name</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">{patientData.fullName}</p>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Age</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">{patientData.age} years</p>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Email</label>
-                <p className="text-sm font-medium text-gray-900 mt-1 flex items-center gap-1">
-                  <Mail className="w-3 h-3 text-blue-600" />
-                  {patientData.email}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">{patientData.createdBy}</p>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">{formatDateTime(patientData.createdAt)}</p>
-              </div>
-              {patientData.updatedAt && (
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Last Updated</label>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{formatDateTime(patientData.updatedAt)}</p>
+            {/* Patient Information & Medical Record (Combined) */}
+            <div className="border-b border-gray-200/80 px-6 py-5 bg-gradient-to-r from-blue-50/30 to-white">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+                  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Full Name</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.fullName}</p>
                 </div>
+                <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+                  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Age</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.age} years</p>
+                </div>
+                <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+                  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Email</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1 flex items-center gap-1">
+                    <Mail className="w-3 h-3 text-blue-600" />
+                    {patientData.email}
+                  </p>
+                </div>
+                {patientData.medicalRecordId && (
+                  <>
+                    <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Created At</label>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">{formatDateTime(patientData.createdAt)}</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Created By</label>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.createdBy || 'System'}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Test Orders Section */}
+            <div className="overflow-hidden">
+              {loading ? (
+                <div className="flex justify-center items-center py-20">
+                  <InlineLoader 
+                    text="Loading medical records" 
+                    size="large" 
+                    theme="blue" 
+                    centered={true}
+                  />
+                </div>
+              ) : !patientData || !patientData.medicalRecordId ? (
+                <div className="text-center py-16 animate-fade-in px-6">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-600 text-base font-medium">No medical record found</p>
+                  <p className="text-gray-400 text-sm mt-1 mb-4">Create a medical record to start managing test orders</p>
+                  <button
+                    onClick={handleCreateMedicalRecord}
+                    disabled={isCreatingRecord || loading}
+                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 mx-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {isCreatingRecord ? 'Creating...' : 'Create Medical Record'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Test Orders Header */}
+                  <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                          <ClipboardList className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">Test Orders</h3>
+                          <p className="text-xs text-gray-500">Manage test orders for this patient</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleCreateTestOrder();
+                        }}
+                        className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New Test Order
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Test Orders Table */}
+                  {paginatedTestOrders.length === 0 ? (
+                    <div className="text-center py-12 px-6">
+                      <p className="text-gray-500 text-base">No test orders found</p>
+                      <p className="text-gray-400 text-sm mt-1">Create a new test order to get started</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-6 py-4">
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
+                              <tr>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                  Test Package
+                                </th>
+                                <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-24">
+                                  Status
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                  Created At
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                  Action
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-100/50">
+                              {paginatedTestOrders.map((order, index) => {
+                                const orderStatus = order.status || 'Created';
+                                
+                                return (
+                                  <tr 
+                                    key={order.testOrderId} 
+                                    className="hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-transparent transition-all duration-300 group animate-fade-in"
+                                    style={{ animationDelay: `${index * 0.05}s` }}
+                                  >
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <div className="text-sm font-medium text-gray-900">{order.testType || order.priority || 'N/A'}</div>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap w-24">
+                                      <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${getStatusColor(orderStatus)}`}>
+                                        {orderStatus}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {order.createdAt 
+                                        ? new Date(order.createdAt).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric'
+                                          })
+                                        : 'N/A'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => {
+                                            setSelectedOrderId(order.testOrderId);
+                                            setIsDetailModalOpen(true);
+                                          }}
+                                          className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-blue-50 to-blue-100/50 text-blue-700 rounded-[5px] hover:from-blue-100 hover:to-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-blue-200/50 hover:border-blue-300"
+                                          title="View Details & Test Results"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                          View
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedRecord(patientData);
+                                            handleEditTestOrder(order);
+                                          }}
+                                          className="text-blue-600 hover:text-blue-700 p-1.5 hover:bg-blue-50 rounded-[5px] transition-colors"
+                                          title="Edit Test Order"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Test Orders Pagination */}
+                      {testOrdersTotalPages > 1 && (
+                        <div className="border-t border-gray-200/80 px-6 py-4 bg-gray-50/30">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <span className="font-medium">Show</span>
+                              <select
+                                value={testOrdersPageSize}
+                                onChange={(e) => handleTestOrdersPageSizeChange(Number(e.target.value))}
+                                className="border border-gray-300 rounded-[5px] px-2 py-1 text-sm bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                              >
+                                <option value={3}>3</option>
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                              </select>
+                              <span className="font-medium">entries</span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-gray-600">
+                                {totalTestOrders > 0 ? testOrdersStartIndex + 1 : 0} - {Math.min(testOrdersEndIndex, totalTestOrders)} of {totalTestOrders.toLocaleString()}
+                              </span>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleTestOrdersPageChange(testOrdersPage - 1)}
+                                  disabled={!hasPreviousTestOrdersPage || testOrdersPage === 1}
+                                  className="p-1.5 rounded-[5px] hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                                </button>
+
+                                {renderTestOrdersPagination().map((page, index) => (
+                                  page === '...' ? (
+                                    <span key={`ellipsis-${index}`} className="px-2 text-gray-400 text-sm">...</span>
+                                  ) : (
+                                    <button
+                                      key={page}
+                                      onClick={() => handleTestOrdersPageChange(page)}
+                                      className={`px-2.5 py-1 text-sm rounded-[5px] transition-colors ${
+                                        testOrdersPage === page
+                                          ? 'bg-blue-600 text-white'
+                                          : 'text-gray-600 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  )
+                                ))}
+
+                                <button
+                                  onClick={() => handleTestOrdersPageChange(testOrdersPage + 1)}
+                                  disabled={!hasNextTestOrdersPage || testOrdersPage === testOrdersTotalPages}
+                                  className="p-1.5 rounded-[5px] hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>
-
-          {/* Test Orders Section */}
-          {patientData?.testOrders && patientData.testOrders.length > 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                    <ClipboardList className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Test Orders</h2>
-                    <p className="text-sm text-gray-500">{patientData.testOrders.length} order(s) found</p>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleCreateTestOrder}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  New Test Order
-                </button>
-              </div>
-
-              {/* Test Orders List */}
-              <div className="space-y-4">
-                {patientData.testOrders.map((order) => (
-                  <div key={order.testOrderId} className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900 mb-1">{order.orderCode}</h3>
-                        <p className="text-xs text-gray-500 font-mono">{order.testOrderId}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status}
-                        </span>
-                        <button
-                          onClick={() => handleEditTestOrder(order)}
-                          className="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit Test Order"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Priority</label>
-                        <p className="text-sm font-medium text-gray-900">{order.priority}</p>
-                      </div>
-                      
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Run Date</label>
-                        <p className="text-sm font-medium text-gray-900">
-                          {order.runDate && order.runDate !== "0001-01-01T00:00:00" 
-                            ? formatDateTime(order.runDate) 
-                            : "Not run yet"}
-                        </p>
-                      </div>
-                      
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Run By</label>
-                        <p className="text-sm font-medium text-gray-900">{order.runBy || "N/A"}</p>
-                      </div>
-                      
-                      {order.note && (
-                        <div className="md:col-span-2 lg:col-span-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                          <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Note</label>
-                          <p className="text-sm text-gray-900">{order.note}</p>
-                        </div>
-                      )}
-                      
-                      {order.testResults && (
-                        <div className="md:col-span-2 lg:col-span-4 bg-green-50 p-3 rounded-lg border border-green-200">
-                          <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Test Results</label>
-                          <p className="text-sm text-gray-900">{order.testResults}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <ClipboardList className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Test Orders Found</h3>
-              <p className="text-gray-500 mb-6">This patient doesn't have any test orders yet.</p>
-              <button 
-                onClick={handleCreateTestOrder}
-                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto"
-              >
-                <Plus className="w-4 h-4" />
-                Create New Test Order
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Test Order Modal */}
@@ -585,6 +812,19 @@ export default function PatientMedicalRecordDetailPage() {
           mode={modalMode}
           initialData={selectedRecord}
           patientData={patientData}
+        />
+
+        {/* Test Order Detail Modal */}
+        <TestOrderDetailModal
+          testOrderId={selectedOrderId}
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedOrderId(null);
+          }}
+          onUpdate={() => {
+            fetchPatientMedicalRecords();
+          }}
         />
       </div>
     </DashboardLayout>

@@ -148,7 +148,7 @@ const router = createBrowserRouter([
   {
     path: "/test-orders",
     element: (
-      <ProtectedRoute requiredPrivileges={["REVIEW_TEST_ORDER"]}>
+      <ProtectedRoute requiredPrivileges={["VIEW_USER"]}>
         <TestOrderPage />
       </ProtectedRoute>
     ),

@@ -138,15 +138,7 @@ export const deletePatient = async (patientId) => {
   }
 };
 
-export const searchPatients = async (searchTerm) => {
-  try {
-    const response = await api.get(`/Patient/search?query=${encodeURIComponent(searchTerm)}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error searching patients:', error);
-    throw error;
-  }
-};
+// Removed searchPatients function - using getAllPatients with client-side filtering instead
 
 export const getPatientMedicalRecords = async (patientId) => {
   try {
@@ -185,7 +177,6 @@ const PatientService = {
   createPatientByIdentity, // NEW
   updatePatient,
   deletePatient,
-  searchPatients,
   getPatientMedicalRecords,
   getMyPatientInfo, // NEW
 };

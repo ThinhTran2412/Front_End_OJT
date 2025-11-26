@@ -31,6 +31,7 @@ import teamImage from '../../assets/images/team.png';
 import user1Image from '../../assets/images/user1.png';
 import user2Image from '../../assets/images/user2.png';
 import user3Image from '../../assets/images/user3.png';
+import AnimatedGradient from '../../components/Background/AnimatedGradient';
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState({});
@@ -40,10 +41,18 @@ export default function Home() {
   const heroRef = useRef(null);
 
   useEffect(() => {
+    let ticking = false;
+    
     const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
       const currentScrollY = window.scrollY;
       setScrollY(currentScrollY);
       setIsScrolled(currentScrollY > 50);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -53,18 +62,24 @@ export default function Home() {
   useEffect(() => {
     const observerOptions = {
       threshold: 0.1,
-      rootMargin: '0px 0px -100px 0px'
+      rootMargin: '0px 0px -50px 0px' // Reduced margin for better performance
     };
 
     const observer = new IntersectionObserver((entries) => {
+      // Batch updates to reduce re-renders
+      const updates = {};
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          setIsVisible((prev) => ({
-            ...prev,
-            [entry.target.id]: true
-          }));
+          updates[entry.target.id] = true;
         }
       });
+      
+      if (Object.keys(updates).length > 0) {
+          setIsVisible((prev) => ({
+            ...prev,
+          ...updates
+          }));
+        }
     }, observerOptions);
 
     Object.values(sectionsRef.current).forEach((el) => {
@@ -161,42 +176,9 @@ export default function Home() {
   }));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pastel-blue-lighter via-pastel-blue-light to-white overflow-hidden relative">
-      {/* Animated Background with Particles */}
-      <div className="fixed inset-0 z-0 overflow-hidden">
-        {/* Gradient Background Animation */}
-        <div 
-          className="absolute inset-0 animate-gradient"
-          style={{
-            background: 'linear-gradient(-45deg, #99EBFF, #33D6FF, #00CCFF, #99EBFF)',
-            backgroundSize: '400% 400%'
-          }}
-        ></div>
-        
-        {/* Animated Particles */}
-        <div className="absolute inset-0">
-          {particles.map((particle) => (
-            <div
-              key={particle.id}
-              className="absolute rounded-full bg-pastel-blue/30 animate-particle"
-              style={{
-                width: `${particle.size}px`,
-                height: `${particle.size}px`,
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-                animationDelay: `${particle.delay}s`,
-                animationDuration: `${particle.duration}s`
-              }}
-            ></div>
-          ))}
-        </div>
-
-        {/* Floating Blobs */}
-        <div className="absolute top-20 left-10 w-96 h-96 bg-pastel-blue/20 rounded-full blur-3xl animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pastel-blue-light/20 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-1/2 w-96 h-96 bg-pastel-blue/15 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-20 right-1/4 w-72 h-72 bg-pastel-blue-dark/10 rounded-full blur-3xl animate-blob animation-delay-3000"></div>
-      </div>
+    <div className="min-h-screen overflow-hidden relative" style={{ transform: 'translateZ(0)' }}>
+      {/* Animated Gradient Background for entire page */}
+      <AnimatedGradient className="fixed inset-0 z-0 will-change-transform" />
 
       {/* Floating Header */}
       <header 
@@ -265,14 +247,15 @@ export default function Home() {
       {/* Hero Section */}
       <section 
         ref={heroRef}
-        className="relative min-h-screen flex items-center justify-center overflow-hidden z-10 pt-20"
+        className="relative min-h-screen flex items-center justify-center overflow-hidden z-10 pt-20 will-change-transform"
       >
+        
         {/* Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left: Text Content */}
             <div className="space-y-8 animate-slide-in-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 glass-enhanced rounded-full border border-pastel-blue/30 hover-glow animate-scale-in">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30 shadow-lg animate-scale-in">
                 <div className="flex -space-x-2">
                   {[user1Image, user2Image, user3Image].map((userImg, i) => (
                     <img
@@ -284,24 +267,24 @@ export default function Home() {
                       onError={(e) => {
                         e.target.style.display = 'none';
                         const fallback = document.createElement('div');
-                        fallback.className = 'w-8 h-8 rounded-full bg-pastel-blue border-2 border-white shadow-md';
+                        fallback.className = 'w-8 h-8 rounded-full bg-white/50 border-2 border-white shadow-md';
                         e.target.parentNode.appendChild(fallback);
                       }}
                     />
                   ))}
                 </div>
-                <span className="text-sm font-medium text-gray-700">+10K Clients</span>
+                <span className="text-sm font-medium text-white drop-shadow-sm">+10K Clients</span>
               </div>
               
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
-                <span className="text-gradient-animate inline-block py-1 rounded-lg bg-white/20 backdrop-blur-sm">Next-Gen</span>
+              <span className="text-gradient-animate inline-block bg-transparent">Next-Gen</span>
                 <br />
-                <span className="text-gray-900">Laboratory</span>
+                <span className="text-white drop-shadow-lg">Laboratory</span>
                 <br />
-                <span className="text-blue-700">Solutions</span>
+                <span className="text-white/90 drop-shadow-lg">Solutions</span>
               </h1>
               
-              <p className="text-xl text-gray-800 max-w-xl leading-relaxed animate-fade-in-delay">
+              <p className="text-xl text-white/90 max-w-xl leading-relaxed animate-fade-in-delay backdrop-blur-sm p-4">
                 Advanced laboratory services with AI-powered precision and comprehensive analytical solutions for modern healthcare.
               </p>
               
@@ -385,25 +368,23 @@ export default function Home() {
       <section 
         id="gallery"
         ref={(el) => (sectionsRef.current.gallery = el)}
-        className="relative py-24 px-4 sm:px-6 lg:px-8 bg-white z-10 overflow-hidden"
+        className="relative py-24 px-4 sm:px-6 lg:px-8 z-10 overflow-hidden will-change-transform"
       >
-        {/* Background Pattern - Dots */}
-        <div className="absolute inset-0 opacity-[0.03]">
-          <div 
-            className="absolute top-0 left-0 w-full h-full"
+        {/* Glass panel effect - transparent edges, color only in center */}
+        <div className="absolute inset-0 backdrop-blur-md" 
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300CCFF' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              backgroundSize: '60px 60px'
-            }}
-          ></div>
+               background: `
+                 radial-gradient(ellipse at center, rgba(255,255,255,0.25) 20%, rgba(255,255,255,0.15) 40%, rgba(255,255,255,0.08) 60%, transparent 80%)
+               `
+             }}>
         </div>
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className={`text-center mb-16 transition-all duration-1000 ${isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
               Our Facilities
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-white/90 max-w-2xl mx-auto drop-shadow-md">
               State-of-the-art equipment and professional team
             </p>
           </div>
@@ -491,8 +472,16 @@ export default function Home() {
       <section 
         id="features"
         ref={(el) => (sectionsRef.current.features = el)}
-        className="relative py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-900 to-gray-800 z-10"
+        className="relative py-24 px-4 sm:px-6 lg:px-8 z-10 will-change-transform"
       >
+        {/* Dark glass panel effect - transparent edges, dark color only in center */}
+        <div className="absolute inset-0 backdrop-blur-md" 
+             style={{
+               background: `
+                 radial-gradient(ellipse at center, rgba(0,0,0,0.4) 20%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.15) 60%, transparent 80%)
+               `
+             }}>
+        </div>
         <div className="max-w-7xl mx-auto">
           <div className={`text-center mb-16 transition-all duration-1000 ${isVisible.features ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -543,28 +532,23 @@ export default function Home() {
       <section 
         id="services"
         ref={(el) => (sectionsRef.current.services = el)}
-        className="relative py-24 px-4 sm:px-6 lg:px-8 bg-white z-10 overflow-hidden"
+        className="relative py-24 px-4 sm:px-6 lg:px-8 z-10 overflow-hidden will-change-transform"
       >
-        {/* Background Pattern - Dots like Login page */}
-        <div className="absolute inset-0 opacity-[0.03]">
-          <div 
-            className="absolute top-0 left-0 w-full h-full"
+        {/* Glass panel effect - transparent edges, color only in center */}
+        <div className="absolute inset-0 backdrop-blur-md" 
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300CCFF' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              backgroundSize: '60px 60px'
-            }}
-          ></div>
+               background: `
+                 radial-gradient(ellipse at center, rgba(255,255,255,0.3) 20%, rgba(255,255,255,0.18) 40%, rgba(255,255,255,0.1) 60%, transparent 80%)
+               `
+             }}>
         </div>
-
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-pastel-blue-lighter/10 via-transparent to-transparent pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className={`text-center mb-16 transition-all duration-1000 ${isVisible.services ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
               Professional Services
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-white/90 max-w-2xl mx-auto drop-shadow-md">
               Diverse range of testing and analysis services
             </p>
           </div>
@@ -633,24 +617,22 @@ export default function Home() {
       <section 
         id="cta"
         ref={(el) => (sectionsRef.current.cta = el)}
-        className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-white z-10"
+        className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden z-10"
       >
-        {/* Background Pattern - Dots */}
-        <div className="absolute inset-0 opacity-[0.03]">
-          <div 
-            className="absolute top-0 left-0 w-full h-full"
+        {/* Glass panel effect - transparent edges, color only in center */}
+        <div className="absolute inset-0 backdrop-blur-md" 
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300CCFF' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              backgroundSize: '60px 60px'
-            }}
-          ></div>
+               background: `
+                 radial-gradient(ellipse at center, rgba(255,255,255,0.25) 20%, rgba(255,255,255,0.15) 40%, rgba(255,255,255,0.08) 60%, transparent 80%)
+               `
+             }}>
         </div>
         
         <div className={`max-w-4xl mx-auto text-center relative z-10 transition-all duration-1000 ${isVisible.cta ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 drop-shadow-lg">
             Ready to Get Started?
           </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto drop-shadow-md">
             Contact us today for the best consultation and support
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -666,8 +648,16 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="relative bg-gradient-to-br from-gray-900 to-gray-800 text-white z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <footer className="relative text-white z-10">
+        {/* Dark glass panel effect - transparent edges, dark color only in center */}
+        <div className="absolute inset-0 backdrop-blur-md" 
+             style={{
+               background: `
+                 radial-gradient(ellipse at center, rgba(0,0,0,0.5) 20%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.2) 60%, transparent 80%)
+               `
+             }}>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Company Info */}
             <div className="space-y-4">

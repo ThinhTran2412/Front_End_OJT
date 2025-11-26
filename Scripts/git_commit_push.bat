@@ -15,22 +15,17 @@ setlocal enabledelayedexpansion
 REM Change to Front_End directory
 cd /d "%~dp0\.."
 
-REM Check if Front_End is a git repository itself
-if exist ".git" (
-    REM Front_End is a separate git repository
-    set GIT_ROOT=%CD%
-    set IS_SEPARATE_REPO=1
-    echo   [INFO] Front_End is a separate git repository
-) else (
-    REM Front_End is part of parent repository
-    cd /d "%~dp0\..\..\.."
-    set GIT_ROOT=%CD%
-    set IS_SEPARATE_REPO=0
-    echo   [INFO] Front_End is part of parent repository
+REM Check if git repository exists in Front_End folder only
+if not exist ".git" (
+    echo Error: Not a git repository in Front_End!
+    echo Current directory: %CD%
+    echo Front_End must have its own .git folder.
+    exit /b 1
 )
 
-REM Change back to Front_End directory for operations
-cd /d "%~dp0\.."
+REM Front_End is a separate git repository
+set GIT_ROOT=%CD%
+set IS_SEPARATE_REPO=1
 
 echo.
 echo ==============================================================

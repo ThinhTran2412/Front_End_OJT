@@ -137,8 +137,9 @@ export default function TestOrderDetailModal({
           if (!results || results.length === 0) {
             console.log('No test results found, attempting to process from simulator...');
             try {
-              await processFromSimulator(actualTestOrderId);
-              console.log('Successfully processed from simulator, fetching test results again...');
+              // Always use CBC for demo purposes as other test types don't have data yet
+              await processFromSimulator(actualTestOrderId, 'CBC');
+              console.log('Successfully processed from simulator with CBC test type, fetching test results again...');
               
               // Wait a bit for processing to complete, then fetch again
               await new Promise(resolve => setTimeout(resolve, 1000));

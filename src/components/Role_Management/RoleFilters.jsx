@@ -1,13 +1,102 @@
 import { Select } from 'antd';
 import PrivilegeTag from './PrivilegeTag';
 
+// Format "READ_ONLY" → "Read Only"
+function formatPrivilegeName(name) {
+  if (!name) return '';
+  return name
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export default function RoleFilters({
   selectedPrivileges,
   privileges,
   privilegesLoading,
   onPrivilegeFilter,
-  onClearFilters
+  onClearFilters,
+  compact = false
 }) {
+  if (compact) {
+    return (
+      <>
+        <style jsx>{`
+          .privilege-select-compact .ant-select-selector {
+            min-height: 40px !important;
+            padding: 6px 12px !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            flex-wrap: wrap !important;
+          }
+          .privilege-select-compact .ant-select-selection-item {
+            margin: 2px 4px 2px 0 !important;
+          }
+          .privilege-select-compact .ant-select-selection-placeholder {
+            line-height: 28px !important;
+          }
+          .privilege-select-compact .ant-select-selection-search {
+            margin: 2px 0 !important;
+          }
+        `}</style>
+        
+        <Select
+          mode="multiple"
+          placeholder="Select privileges..."
+          value={selectedPrivileges}
+          onChange={onPrivilegeFilter}
+          style={{ width: '100%' }}
+          loading={privilegesLoading}
+          showSearch={true}
+          size="middle"
+          maxTagCount={2}
+          className="privilege-select-compact"
+          filterOption={(input, option) => {
+            const privilegeName = option.label?.toLowerCase() || '';
+            const privilegeDesc = option.description?.toLowerCase() || '';
+            const searchTerm = input.toLowerCase();
+            return privilegeName.includes(searchTerm) || privilegeDesc.includes(searchTerm);
+          }}
+          tagRender={(props) => {
+            const { label, value, closable, onClose } = props;
+            const privilege = privileges.find(p => p.privilegeId === value);
+            const formattedPrivilege = {
+              raw: privilege?.name || label,
+              name: formatPrivilegeName(privilege?.name || label)
+            };
+            return (
+              <PrivilegeTag 
+                privilege={formattedPrivilege} 
+                size="small" 
+                closable={closable}
+                onClose={onClose}
+                className="mr-1 mb-1"
+              />
+            );
+          }}
+          options={privileges.map(privilege => ({
+            label: privilege.name,
+            value: privilege.privilegeId,
+            description: privilege.description
+          }))}
+          optionRender={(option) => {
+            const privilege = privileges.find(p => p.privilegeId === option.value);
+            const formattedPrivilege = {
+              raw: privilege?.name || option.label,
+              name: formatPrivilegeName(privilege?.name || option.label)
+            };
+            return (
+              <div className="flex items-center space-x-2">
+                <PrivilegeTag privilege={formattedPrivilege} size="small" />
+                <div className="text-xs text-gray-500">{option.description}</div>
+              </div>
+            );
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <style jsx>{`
@@ -53,10 +142,15 @@ export default function RoleFilters({
                 return privilegeName.includes(searchTerm) || privilegeDesc.includes(searchTerm);
               }}
               tagRender={(props) => {
-                const { label, closable, onClose } = props;
+                const { label, value, closable, onClose } = props;
+                const privilege = privileges.find(p => p.privilegeId === value);
+                const formattedPrivilege = {
+                  raw: privilege?.name || label,
+                  name: formatPrivilegeName(privilege?.name || label)
+                };
                 return (
                   <PrivilegeTag 
-                    privilege={{name: label}} 
+                    privilege={formattedPrivilege} 
                     size="small" 
                     closable={closable}
                     onClose={onClose}
@@ -71,9 +165,13 @@ export default function RoleFilters({
               }))}
               optionRender={(option) => {
                 const privilege = privileges.find(p => p.privilegeId === option.value);
+                const formattedPrivilege = {
+                  raw: privilege?.name || option.label,
+                  name: formatPrivilegeName(privilege?.name || option.label)
+                };
                 return (
                   <div className="flex items-center space-x-2">
-                    <PrivilegeTag privilege={privilege} size="small" />
+                    <PrivilegeTag privilege={formattedPrivilege} size="small" />
                     <div className="text-xs text-gray-500">{option.description}</div>
                   </div>
                 );

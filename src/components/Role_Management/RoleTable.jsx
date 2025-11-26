@@ -2,6 +2,7 @@ import { Table, Popconfirm } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import PrivilegeCell from './PrivilegeCell';
+import { InlineLoader } from '../Loading';
 
 export default function RoleTable({
   roles,
@@ -71,6 +72,18 @@ export default function RoleTable({
           return <span className="text-gray-400 text-sm">N/A</span>;
         }
 
+        // Check if this is the Admin role - hide Edit and Delete buttons
+        const isAdminRole = record.name?.toLowerCase() === 'admin' || 
+                           record.code?.toLowerCase() === 'admin' ||
+                           record.name?.toLowerCase() === 'administrator';
+
+        if (isAdminRole) {
+          return (
+            <div className="flex items-center justify-center">
+            </div>
+          );
+        }
+
         return (
           <div className="flex items-center gap-2">
             <Link
@@ -111,11 +124,21 @@ export default function RoleTable({
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden relative">
+      {loading && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+          <InlineLoader 
+            text="Loading roles..." 
+            size="medium" 
+            theme="purple" 
+            centered={true}
+          />
+        </div>
+      )}
       <Table
         columns={columns}
         dataSource={roles}
-        loading={loading}
+        loading={false}
         rowKey="roleId"
         onChange={onTableChange}
         pagination={{

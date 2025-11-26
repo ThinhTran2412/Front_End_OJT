@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 import UserFilters from "../../components/User_Management/UserFilters";
-import UserTable from "../../components/User_Management/UserTable";
 import { useAuthStore } from "../../store/authStore";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { usePrivileges } from "../../hooks/usePrivileges";
+import { Users, AlertCircle, Eye, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LoadingOverlay, InlineLoader } from '../../components/Loading';
 // JWT Decode function
 const decodeJWT = (token) => {
   try {
@@ -21,6 +23,7 @@ const decodeJWT = (token) => {
 };
 
 export default function UserManagement() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -581,6 +584,11 @@ export default function UserManagement() {
     }
   };
 
+  // Handle create user
+  const handleCreateUser = () => {
+    navigate('/create-user');
+  };
+
   // Handle delete user
   const handleDeleteUser = async (user) => {
     const name = user?.fullName || user?.email || 'this user';
@@ -603,90 +611,248 @@ export default function UserManagement() {
     }
   };
 
+  // Format functions
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${month}/${day}/${year}`;
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${month}/${day}/${year} ${hours}:${minutes}`;
+    } catch {
+      return 'N/A';
+    }
+  };
+
   return (
     <DashboardLayout>
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-      </div>
-
-      {/* Filter & Sort Controls (replaced by UserFilters) */}
-      <div className="px-6 py-4">
-        <UserFilters
-          filters={{
-            keyword,
-            filterField,
-            minAge,
-            maxAge,
-          }}
-          onSearch={handleSearch}
-          onAgeFilter={handleAgeFilter}
-          onClear={handleClearFilters}
-        />
-      </div>
-
-      {/* Validation Error Messages */}
-      {Object.keys(validationErrors).length > 0 && (
-        <div className="px-4 pb-2">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg
-                  className="h-5 w-5 text-red-400"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      {/* Main Container - Gộp tất cả vào một card, chiếm toàn bộ không gian */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
+          {/* Header Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-white to-gray-50/30">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 animate-slide-in-left">
+                <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight">User Management</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">Manage and track system users</p>
+                </div>
               </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">
-                  Validation Errors:
-                </h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <ul className="list-disc list-inside space-y-1">
-                    {Object.values(validationErrors).map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                  </ul>
+              <div className="flex flex-col items-end animate-slide-in-right">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Users</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+                    {users.length > 0 ? users.length.toLocaleString() : '0'}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Table (replaced by UserTable) */}
-      <div className="flex-1 p-6">
-        <UserTable
-          users={users}
-          loading={loading}
-          onView={handleViewClick}
-          onDelete={handleDeleteUser}
-          onChange={handleTableChange}
-          genderFilter={gender}
-        />
-      </div>
+          {/* Search Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+              <div className="flex-1 w-full">
+                <UserFilters
+                  filters={{
+                    keyword,
+                    filterField,
+                    minAge,
+                    maxAge,
+                  }}
+                  onSearch={handleSearch}
+                  onAgeFilter={handleAgeFilter}
+                  onClear={handleClearFilters}
+                />
+              </div>
+              <button 
+                onClick={handleCreateUser}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95 whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                Create User
+              </button>
+            </div>
+          </div>
+
+          {/* Validation Error Messages */}
+          {Object.keys(validationErrors).length > 0 && (
+            <div className="border-b border-red-200/60 bg-gradient-to-r from-red-50 to-rose-50/50 px-6 py-3 flex items-center gap-3 animate-slide-up shadow-sm">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-800 mb-1">Validation Errors:</h3>
+                <ul className="text-sm text-red-700 list-disc list-inside">
+                  {Object.values(validationErrors).map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Table Section */}
+          <div className="overflow-hidden">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <InlineLoader 
+                  text="Loading users" 
+                  size="large" 
+                  theme="blue" 
+                  centered={true}
+                />
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-16 animate-fade-in">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-600 text-base font-medium">No users found</p>
+                <p className="text-gray-400 text-sm mt-1">Try adjusting your search filters</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Full Name
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-40">
+                          Date of Birth / Age
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-24">
+                          Gender
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-32">
+                          Phone Number
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-40">
+                          Identify Number
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Address
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100/50">
+                      {users.map((user, index) => (
+                        <tr 
+                          key={user.userId || user.id || user.email} 
+                          className="hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-transparent transition-all duration-300 group animate-fade-in"
+                          style={{ animationDelay: `${index * 0.05}s` }}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{user.fullName || 'N/A'}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{user.email || 'N/A'}</div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap w-40">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{formatDate(user.dateOfBirth)}</div>
+                              <div className="text-sm text-gray-500">{user.age ? `${user.age} years old` : 'N/A'}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-24">
+                            <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
+                              user.gender === 'Male' || user.gender === 'male'
+                                ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200/50' 
+                                : user.gender === 'Female' || user.gender === 'female'
+                                ? 'bg-gradient-to-r from-pink-100 to-pink-50 text-pink-800 border border-pink-200/50'
+                                : 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 border border-gray-200/50'
+                            }`}>
+                              {user.gender || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-32">
+                            {user.phoneNumber || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-40">
+                            <span className="font-mono text-xs">{user.identifyNumber || 'N/A'}</span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={user.address}>
+                            {user.address || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleViewClick(user)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-blue-50 to-blue-100/50 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-blue-200/50 hover:border-blue-300"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                disabled={loading}
+                                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-red-50 to-red-100/50 text-red-700 rounded-lg hover:from-red-100 hover:to-red-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-red-200/50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
       {/* User Details Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200 animate-scale-in">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
+            <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600 text-white px-6 py-5">
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">User Details</h2>
-                  <p className="text-blue-100">{selectedUser?.fullName}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">User Details</h2>
+                    <p className="text-blue-100 text-sm">{selectedUser?.fullName}</p>
+                  </div>
                 </div>
                 <button
                   onClick={closeModal}
-                  className="text-white hover:text-gray-200 transition-colors"
+                  className="text-white hover:text-gray-200 hover:bg-white/10 rounded-lg p-2 transition-all duration-200"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -696,17 +862,20 @@ export default function UserManagement() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] bg-white">
               {modalLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-600">Loading user details...</span>
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+                  <span className="ml-4 text-gray-700 font-medium">Loading user details...</span>
                 </div>
               ) : userDetails ? (
                 <div className="space-y-6">
                   {/* User Basic Info */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full"></div>
+                      Basic Information
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-600">Email</label>
@@ -728,8 +897,11 @@ export default function UserManagement() {
                   </div>
 
                   {/* Role Information */}
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Role Information</h3>
+                  <div className="bg-white rounded-xl p-5 border border-blue-200 shadow-sm bg-gradient-to-br from-blue-50/50 to-blue-100/30">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full"></div>
+                      Role Information
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-600">Role ID</label>
@@ -755,9 +927,12 @@ export default function UserManagement() {
                   </div>
 
                   {/* Privileges */}
-                  <div className="bg-purple-50 rounded-lg p-4">
+                  <div className="bg-white rounded-xl p-5 border border-purple-200 shadow-sm bg-gradient-to-br from-purple-50/50 to-purple-100/30">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Privileges</h3>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-purple-700 rounded-full"></div>
+                        Privileges
+                      </h3>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setShowPrivilegeDropdown(!showPrivilegeDropdown)}
@@ -921,10 +1096,10 @@ export default function UserManagement() {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-gray-50 px-6 py-4 flex justify-end">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 flex justify-end border-t border-gray-200">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="px-6 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all duration-300 transform hover:scale-105 shadow-lg font-medium"
               >
                 Close
               </button>

@@ -2,6 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import api from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
+import {
+  TextField,
+  Button,
+  Alert,
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  Card,
+  CardContent,
+  Divider,
+  CircularProgress
+} from '@mui/material';
+import { Edit, Save, Cancel } from '@mui/icons-material';
 
 export default function Profile() {
   const { user: authUser, accessToken } = useAuthStore();
@@ -143,7 +157,7 @@ export default function Profile() {
         if (form[key] !== "" && key !== "userId") payload[key] = form[key];
       });
 
-      await api.put("/User/update", payload);
+      await api.patch("/User/updateUserProfile", payload);
 
       setSuccess("Profile updated successfully.");
       setProfile(form);
@@ -164,105 +178,186 @@ export default function Profile() {
 
   // ===== Render helpers =====
   const FieldView = (label, value) => (
-    <div>
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-gray-900 font-medium break-words">{value || "-"}</div>
-    </div>
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+        {label}
+      </Typography>
+      <Typography variant="body1" sx={{ fontWeight: 500, mt: 0.5 }}>
+        {value || "-"}
+      </Typography>
+    </Box>
   );
 
   const FieldEdit = (label, name, type = "text") => (
-    <div>
-      <label className="text-sm text-gray-600">{label}</label>
-      <input
-        type={type}
-        name={name}
-        value={form[name] || ""}
-        onChange={handleInput}
-        className="w-full mt-1 px-3 py-2 border rounded-lg"
-      />
-    </div>
+    <TextField
+      fullWidth
+      label={label}
+      name={name}
+      type={type}
+      value={form[name] || ""}
+      onChange={handleInput}
+      variant="outlined"
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          borderRadius: 2,
+        }
+      }}
+    />
   );
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 py-4">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-xl shadow-lg border p-6 md:p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold text-custom-dark-blue">
-                PROFILE
-              </h1>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 3 }}>
+        <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 3, lg: 4 } }}>
+          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box sx={{ p: { xs: 3, md: 4 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                <Typography variant="h4" component="h1" fontWeight="bold" color="primary">
+                  Profile
+                </Typography>
 
-              {!editMode && profile && (
-                <button
-                  onClick={() => setEditMode(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Edit Profile
-                </button>
-              )}
-            </div>
-
-            {error && <div className="mb-2 text-red-600">{error}</div>}
-            {success && <div className="mb-2 text-green-600">{success}</div>}
-
-            {loading ? (
-              <div className="text-center py-8">Loading...</div>
-            ) : profile ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {editMode ? (
-                    <>
-                      {FieldEdit("Fullname", "fullName")}
-                      {FieldEdit("Email", "email", "email")}
-                      {FieldEdit("Phone number", "phoneNumber")}
-                      {FieldEdit("Gender", "gender")}
-                      {FieldEdit("Age", "age", "number")}
-                      {FieldEdit("Date of birth", "dateOfBirth", "date")}
-                      {FieldEdit("Address", "address")}
-                    </>
-                  ) : (
-                    <>
-                      {FieldView("Fullname", profile.fullName)}
-                      {FieldView("Email", profile.email)}
-                      {FieldView("Phone number", profile.phoneNumber)}
-                      {FieldView("Gender", profile.gender)}
-                      {FieldView("Age", profile.age)}
-                      {FieldView(
-                        "Date of birth",
-                        profile.dateOfBirth
-                          ? new Date(profile.dateOfBirth).toLocaleDateString("en-GB")
-                          : ""
-                      )}
-                      {FieldView("Address", profile.address)}
-                    </>
-                  )}
-                </div>
-
-                {editMode && (
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                {!editMode && profile && (
+                  <Button
+                    variant="contained"
+                    startIcon={<Edit />}
+                    onClick={() => setEditMode(true)}
+                    sx={{
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      px: 3
+                    }}
+                  >
+                    Edit Profile
+                  </Button>
                 )}
-              </>
-            ) : (
-              <div>No profile data.</div>
-            )}
-          </div>
-        </div>
-      </div>
+              </Box>
+
+              {error && (
+                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+                  {error}
+                </Alert>
+              )}
+              
+              {success && (
+                <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+                  {success}
+                </Alert>
+              )}
+
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                  <CircularProgress />
+                  <Typography sx={{ ml: 2 }} color="text.secondary">Loading profile...</Typography>
+                </Box>
+              ) : profile ? (
+                <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ p: 4 }}>
+                    <Grid container spacing={3}>
+                      {editMode ? (
+                        <>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Full Name", "fullName")}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Email", "email", "email")}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Phone Number", "phoneNumber")}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Gender", "gender")}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Age", "age", "number")}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldEdit("Date of Birth", "dateOfBirth", "date")}
+                          </Grid>
+                          <Grid item xs={12}>
+                            {FieldEdit("Address", "address")}
+                          </Grid>
+                        </>
+                      ) : (
+                        <>
+                          <Grid item xs={12} md={6}>
+                            {FieldView("Full Name", profile.fullName)}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldView("Email", profile.email)}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldView("Phone Number", profile.phoneNumber)}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldView("Gender", profile.gender)}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldView("Age", profile.age)}
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            {FieldView(
+                              "Date of Birth",
+                              profile.dateOfBirth
+                                ? new Date(profile.dateOfBirth).toLocaleDateString("en-GB")
+                                : ""
+                            )}
+                          </Grid>
+                          <Grid item xs={12}>
+                            {FieldView("Address", profile.address)}
+                          </Grid>
+                        </>
+                      )}
+                    </Grid>
+
+                    {editMode && (
+                      <>
+                        <Divider sx={{ my: 3 }} />
+                        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                          <Button
+                            variant="outlined"
+                            startIcon={<Cancel />}
+                            onClick={handleCancel}
+                            sx={{
+                              borderRadius: 2,
+                              textTransform: 'none',
+                              px: 3
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="contained"
+                            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                            onClick={handleSave}
+                            disabled={saving}
+                            sx={{
+                              borderRadius: 2,
+                              textTransform: 'none',
+                              px: 3,
+                              bgcolor: 'success.main',
+                              '&:hover': {
+                                bgcolor: 'success.dark',
+                              }
+                            }}
+                          >
+                            {saving ? 'Saving...' : 'Save Changes'}
+                          </Button>
+                        </Box>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <Typography color="text.secondary">
+                    No profile data available.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        </Box>
+      </Box>
     </DashboardLayout>
   );
 }

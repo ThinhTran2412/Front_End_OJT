@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw, Search, FileText, Users, CalendarDays, ClipboardList, Download, Grid3x3, List, Square, CheckSquare2, CheckCircle, ChevronDown, ChevronUp, FileDown, Loader2 } from 'lucide-react';
+import { RefreshCcw, Search, FileText, Users, CalendarDays, ClipboardList, Download, Grid3x3, List, Square, CheckSquare2, CheckCircle, ChevronDown, ChevronUp, FileDown, Loader2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import { RingSpinner, InlineLoader } from '../../components/Loading';
 import { getAllMedicalRecords } from '../../services/MedicalRecordService';
 import { startExportJob } from '../../services/TestOrderService';
 import { exportTestResultsToPdf, getTestResultsByTestOrderId } from '../../services/TestResultService';
@@ -292,115 +293,126 @@ export default function MedicalRecordListPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col gap-6">
-            {/* Page header */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        {/* Main Container */}
+        <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
+          {/* Header Section */}
+          <div className="border-b border-gray-200/80 px-6 py-4 bg-gradient-to-r from-white to-gray-50/30">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 animate-slide-in-left">
+                <div className="w-11 h-11 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Medical Records</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">View and manage all patient medical records</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-end animate-slide-in-right">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Records</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                      {summary.totalRecords.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchRecords}
+                  disabled={loading}
+                  className="group inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed font-medium text-sm"
+                >
+                  <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          <div className="px-6 py-4 border-b border-gray-200/60 bg-gradient-to-r from-gray-50/50 to-white">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <FileText className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Records</p>
+                    <p className="text-xl font-bold text-gray-900">{summary.totalRecords}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <CalendarDays className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Created Today</p>
+                    <p className="text-xl font-bold text-gray-900">{summary.createdToday}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search Section */}
+          <div className="px-6 py-4 border-b border-gray-200/60 bg-white">
+            <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search by patient name, contact, creator..."
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                />
+              </div>
+              <div className="text-xs text-gray-500 font-medium">
+                Showing <span className="text-gray-900 font-semibold">{filteredRecords.length}</span> of{' '}
+                <span className="text-gray-900 font-semibold">{records.length}</span> records
+              </div>
+            </div>
+          </div>
+
+          {/* Error state */}
+          {error && (
+            <div className="mx-6 mb-4 rounded-lg border-2 border-red-300 bg-gradient-to-r from-red-50 to-red-100 text-red-800 px-4 py-3 shadow-sm flex items-start gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-4 h-4 text-red-600" />
+              </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                  <FileText className="w-8 h-8 text-blue-600" />
-                  Medical Records
-                </h1>
-                <p className="text-gray-600 mt-1">
-                  View and manage all patient medical records in the laboratory system.
-                </p>
-              </div>
-              <button
-                onClick={fetchRecords}
-                disabled={loading}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
-
-            {/* Summary cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 text-blue-700 w-10 h-10 rounded-lg flex items-center justify-center">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Total Records</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.totalRecords}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="bg-emerald-100 text-emerald-700 w-10 h-10 rounded-lg flex items-center justify-center">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Unique Patients</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.uniquePatients}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-100 text-purple-700 w-10 h-10 rounded-lg flex items-center justify-center">
-                    <CalendarDays className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Created Today</p>
-                    <p className="text-2xl font-semibold text-gray-900">{summary.createdToday}</p>
-                  </div>
-                </div>
+                <span className="font-semibold block mb-1 text-sm">Error:</span>
+                <span className="text-sm">{error}</span>
               </div>
             </div>
+          )}
 
-            {/* Search bar */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search by patient name, contact, creator, or record ID"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="text-sm text-gray-500">
-                  Showing <span className="font-medium text-gray-900">{filteredRecords.length}</span> of{' '}
-                  <span className="font-medium text-gray-900">{records.length}</span> records
-                </div>
+          {/* Table */}
+          <div className="overflow-hidden">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <InlineLoader 
+                  text="Loading medical records" 
+                  size="large" 
+                  theme="purple" 
+                  centered={true}
+                />
               </div>
-            </div>
-
-            {/* Error state */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
-                <span className="font-medium">Error:</span>
-                <span>{error}</span>
+            ) : filteredRecords.length === 0 ? (
+              <div className="text-center py-16 animate-fade-in">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-600 text-base font-medium">No medical records found</p>
+                <p className="text-gray-400 text-sm mt-1">Try adjusting your search filters or refresh the list</p>
               </div>
-            )}
-
-            {/* Table */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-              {loading ? (
-                <div className="flex justify-center items-center py-16">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-                    <p className="text-gray-600">Loading medical records...</p>
-                  </div>
-                </div>
-              ) : filteredRecords.length === 0 ? (
-                <div className="text-center py-16 px-6">
-                  <p className="text-gray-700 text-lg font-medium mb-1">No medical records found.</p>
-                  <p className="text-gray-500 text-sm">
-                    Try adjusting your search keywords or refresh the list to load the latest data.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
+            ) : (
+              <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Record ID
@@ -425,10 +437,10 @@ export default function MedicalRecordListPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white/80 divide-y divide-gray-200">
                       {filteredRecords.map((record) => (
                         <>
-                        <tr key={record.medicalRecordId} className="hover:bg-gray-50 transition-colors">
+                        <tr key={record.medicalRecordId} className="hover:bg-purple-50/50 transition-all duration-200">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                             MR-{String(record.medicalRecordId).padStart(4, '0')}
                           </td>
@@ -656,7 +668,7 @@ export default function MedicalRecordListPage() {
                                                 title="Export PDF"
                                               >
                                                 {isExportingPdf ? (
-                                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                                  <RingSpinner size="small" text="" theme="blue" />
                                                 ) : (
                                                   <FileDown className="w-4 h-4" />
                                                 )}
@@ -669,7 +681,7 @@ export default function MedicalRecordListPage() {
                                             <div className="px-4 pb-4 border-t border-gray-200">
                                               {isLoadingResults ? (
                                                 <div className="py-4 flex items-center justify-center">
-                                                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                                                  <RingSpinner size="small" text="" theme="blue" />
                                                   <span className="ml-2 text-xs text-gray-600">Loading results...</span>
                                                 </div>
                                               ) : orderTestResults.length > 0 ? (
@@ -858,7 +870,7 @@ export default function MedicalRecordListPage() {
                                             <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
                                               {isLoadingResults ? (
                                                 <div className="py-4 flex items-center justify-center">
-                                                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                                                  <RingSpinner size="small" text="" theme="blue" />
                                                   <span className="ml-2 text-xs text-gray-600">Loading results...</span>
                                                 </div>
                                               ) : orderTestResults.length > 0 ? (
@@ -938,8 +950,7 @@ export default function MedicalRecordListPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>

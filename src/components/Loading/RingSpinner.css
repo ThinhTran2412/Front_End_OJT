@@ -1,0 +1,63 @@
+.ring-spinner-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ring-spinner {
+  flex-shrink: 0;
+}
+
+.ring-spinner-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Size variations */
+.ring-spinner-container.small .ring-spinner-text {
+  font-size: 0.75rem;
+}
+
+.ring-spinner-container.large .ring-spinner-text {
+  font-size: 1rem;
+}
+
+/* Centered variation */
+.ring-spinner-container.centered {
+  justify-content: center;
+  width: 100%;
+}
+
+/* Theme variations */
+.ring-spinner-container.theme-blue .ring-spinner {
+  color: #2563eb;
+}
+
+.ring-spinner-container.theme-green .ring-spinner {
+  color: #16a34a;
+}
+
+.ring-spinner-container.theme-purple .ring-spinner {
+  color: #9333ea;
+}
+
+.ring-spinner-container.theme-red .ring-spinner {
+  color: #dc2626;
+}
+
+.ring-spinner-container.theme-yellow .ring-spinner {
+  color: #ca8a04;
+}
+
+.ring-spinner-container.theme-indigo .ring-spinner {
+  color: #4f46e5;
+}
+
+.ring-spinner-container.theme-pink .ring-spinner {
+  color: #ec4899;
+}
+
+.ring-spinner-container.theme-gray .ring-spinner {
+  color: #6b7280;
+}
