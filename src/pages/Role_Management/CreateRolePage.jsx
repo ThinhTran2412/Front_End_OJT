@@ -5,6 +5,51 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import { usePrivileges } from "../../hooks/usePrivileges";
 import { Select } from "antd";
 
+// Privilege dependency mapping - matches backend PrivilegeDependencyMap
+const PRIVILEGE_DEPENDENCY_MAP = {
+  // Patient Test Order Privileges (1-8) - Depend on READ_ONLY (1)
+  3: 1,   // MODIFY_TEST_ORDER -> READ_ONLY
+  5: 1,   // REVIEW_TEST_ORDER -> READ_ONLY
+  7: 1,   // MODIFY_COMMENT -> READ_ONLY
+  
+  // Configuration Privileges (9-12) - Depend on VIEW_CONFIGURATION (9)
+  11: 9,  // MODIFY_CONFIGURATION -> VIEW_CONFIGURATION
+  
+  // User Management Privileges (13-17) - Depend on VIEW_USER (13)
+  15: 13, // MODIFY_USER -> VIEW_USER
+  17: 13, // LOCK_UNLOCK_USER -> VIEW_USER
+  
+  // Role Management Privileges (18-21) - Depend on VIEW_ROLE (18)
+  20: 18, // UPDATE_ROLE -> VIEW_ROLE
+  
+  // Lab Management Privileges (22-29)
+  24: 22, // MODIFY_REAGENTS -> VIEW_EVENT_LOGS
+  28: 27  // ACTIVATE_DEACTIVATE_INSTRUMENT -> VIEW_INSTRUMENT
+};
+
+// Function to normalize privilege IDs by adding required dependencies
+const normalizePrivilegeIds = (initialIds) => {
+  if (!initialIds || initialIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = new Set(initialIds);
+  const idsToAdd = new Set();
+
+  // Check each selected privilege for dependencies
+  initialIds.forEach(actionId => {
+    const requiredViewId = PRIVILEGE_DEPENDENCY_MAP[actionId];
+    if (requiredViewId && !uniqueIds.has(requiredViewId)) {
+      idsToAdd.add(requiredViewId);
+    }
+  });
+
+  // Add all required dependencies
+  idsToAdd.forEach(id => uniqueIds.add(id));
+
+  return Array.from(uniqueIds);
+};
+
 export default function CreateRolePage() {
   const navigate = useNavigate();
 
@@ -155,7 +200,9 @@ export default function CreateRolePage() {
               placeholder="Select privileges..."
               value={formData.privilegeIds}
               onChange={(vals) => {
-                setFormData(prev => ({ ...prev, privilegeIds: vals }));
+                // Normalize privilege IDs to include required dependencies
+                const normalizedIds = normalizePrivilegeIds(vals);
+                setFormData(prev => ({ ...prev, privilegeIds: normalizedIds }));
                 setErrors(prev => ({ ...prev, privilegeIds: '' }));
               }}
               options={(Array.isArray(privileges) ? privileges : []).map(p => ({
