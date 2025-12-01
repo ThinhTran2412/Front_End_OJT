@@ -219,7 +219,7 @@ export default function TestResultsList({
             return (
               <div 
                 key={uniqueKey} 
-                className={`p-4 border-l-4 transition-all ${
+                className={`p-3 border-l-4 transition-all ${
                   isAiReviewed 
                     ? isConfirmed 
                       ? 'bg-green-50 border-green-500' 
@@ -227,51 +227,48 @@ export default function TestResultsList({
                     : 'bg-white border-gray-200'
                 }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  {/* Test Result Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-semibold text-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  {/* Test Result Info - Compact */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-semibold text-gray-900 truncate">
                         {result.parameter || result.Parameter || result.testCode || result.TestCode || 'Unknown Parameter'}
                       </h4>
                       {isAiReviewed && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 animate-pulse">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 flex-shrink-0">
                           <Sparkles className="w-3 h-3" />
-                          AI Reviewed
+                          AI
                         </span>
                       )}
                       {isConfirmed && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 flex-shrink-0">
                           <CheckCircle2 className="w-3 h-3" />
-                          Confirmed
+                          ✓
                         </span>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                      <div>
-                        <span className="text-gray-500">Value: </span>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Value:</span>
                         <span className="font-medium text-gray-900">
                           {(result.valueNumeric !== null && result.valueNumeric !== undefined) || 
                            (result.ValueNumeric !== null && result.ValueNumeric !== undefined)
                             ? (result.valueNumeric ?? result.ValueNumeric)
                             : (result.valueText || result.ValueText || 'N/A')}
                         </span>
+                        {(result.unit || result.Unit) && (
+                          <span className="text-gray-500 ml-1">{result.unit || result.Unit}</span>
+                        )}
                       </div>
-                      {(result.unit || result.Unit) && (
-                        <div>
-                          <span className="text-gray-500">Unit: </span>
-                          <span className="font-medium text-gray-900">{result.unit || result.Unit}</span>
-                        </div>
-                      )}
                       {(result.referenceRange || result.ReferenceRange) && (
-                        <div>
-                          <span className="text-gray-500">Reference: </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500">Ref:</span>
                           <span className="font-medium text-gray-900">{result.referenceRange || result.ReferenceRange}</span>
                         </div>
                       )}
-                      <div>
-                        <span className="text-gray-500">Status: </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Status:</span>
                         <span className={`font-semibold ${
                           (result.status || result.Status || result.resultStatus || result.ResultStatus) === 'Normal' ? 'text-green-600' :
                           (result.status || result.Status || result.resultStatus || result.ResultStatus) === 'High' || 
@@ -281,46 +278,7 @@ export default function TestResultsList({
                           {result.status || result.Status || result.resultStatus || result.ResultStatus || 'Pending'}
                         </span>
                       </div>
-                      {(result.performedBy !== null && result.performedBy !== undefined) || 
-                       (result.PerformedBy !== null && result.PerformedBy !== undefined) ? (
-                        <div>
-                          <span className="text-gray-500">Performed By: </span>
-                          <span className="font-medium text-gray-900">
-                            {result.performedBy ?? result.PerformedBy}
-                          </span>
-                        </div>
-                      ) : null}
                     </div>
-
-                    {/* AI Review Information */}
-                    {isAiReviewed && (
-                      <div className="mt-3 p-2 bg-purple-100 rounded border border-purple-200">
-                        <div className="flex items-center gap-2 text-xs">
-                          <Sparkles className="w-3 h-3 text-purple-600" />
-                          <span className="font-semibold text-purple-900">AI Review:</span>
-                          {aiReviewedDate ? (
-                            <span className="text-purple-700">
-                              {new Date(aiReviewedDate).toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="text-purple-700">Completed</span>
-                          )}
-                        </div>
-                        {!isConfirmed && (
-                          <div className="mt-1 text-xs text-purple-600 italic">
-                            Awaiting confirmation
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Confirmation Information */}
-                    {isConfirmed && confirmedDate && (
-                      <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Confirmed: {new Date(confirmedDate).toLocaleString()}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

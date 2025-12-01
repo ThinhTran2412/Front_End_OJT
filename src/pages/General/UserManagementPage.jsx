@@ -4,9 +4,11 @@ import UserFilters from "../../components/User_Management/UserFilters";
 import { useAuthStore } from "../../store/authStore";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { usePrivileges } from "../../hooks/usePrivileges";
-import { Users, AlertCircle, Eye, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Users, AlertCircle, Eye, Trash2, ChevronLeft, ChevronRight, Plus, ChevronDown, ChevronUp, AlertTriangle, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingOverlay, InlineLoader } from '../../components/Loading';
+import { useToast, ToastContainer } from '../../components/Toast';
+import CreateUserModal from '../../components/modals/CreateUserModal';
 // JWT Decode function
 const decodeJWT = (token) => {
   try {
@@ -24,9 +26,11 @@ const decodeJWT = (token) => {
 
 export default function UserManagement() {
   const navigate = useNavigate();
+  const { toasts, showToast, removeToast } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
   // Get access token from store
   const { accessToken } = useAuthStore();
@@ -107,6 +111,20 @@ export default function UserManagement() {
   const [selectedPrivilegesToAdd, setSelectedPrivilegesToAdd] = useState([]);
   const [showPrivilegeDropdown, setShowPrivilegeDropdown] = useState(false);
   const [updatingPrivileges, setUpdatingPrivileges] = useState(false);
+  const [privilegesExpanded, setPrivilegesExpanded] = useState(false);
+  
+  // Update user state
+  const [editMode, setEditMode] = useState(false);
+  const [updateFormData, setUpdateFormData] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    gender: '',
+    age: '',
+    address: '',
+    dateOfBirth: ''
+  });
+  const [updatingUser, setUpdatingUser] = useState(false);
   
   // Get all available privileges
   const { privileges: allPrivileges, loading: privilegesLoading } = usePrivileges();
@@ -210,7 +228,7 @@ export default function UserManagement() {
   // Handle view button click
   const handleViewClick = async (u) => {
     if (!canViewUserDetails()) {
-      alert("You do not have permission to view user details");
+      showToast("You do not have permission to view user details", "error");
       return;
     }
 
@@ -226,6 +244,115 @@ export default function UserManagement() {
     setUserDetails(null);
     setSelectedPrivilegesToAdd([]);
     setShowPrivilegeDropdown(false);
+    setPrivilegesExpanded(false);
+    setEditMode(false);
+    setUpdateFormData({
+      fullName: '',
+      email: '',
+      phoneNumber: '',
+      gender: '',
+      age: '',
+      address: '',
+      dateOfBirth: ''
+    });
+  };
+  
+  // Check if field is missing
+  const isFieldMissing = (value) => {
+    return !value || value === '-' || value === 'N/A' || value === '_________' || value === null || value === undefined || value === '';
+  };
+  
+  // Check if user has missing fields
+  const hasMissingFields = () => {
+    if (!userDetails) return false;
+    return isFieldMissing(userDetails.fullName) ||
+           isFieldMissing(userDetails.phoneNumber) ||
+           isFieldMissing(userDetails.gender) ||
+           isFieldMissing(userDetails.age) ||
+           isFieldMissing(userDetails.address) ||
+           isFieldMissing(userDetails.dateOfBirth);
+  };
+  
+  // Initialize form data when user details are loaded
+  useEffect(() => {
+    if (userDetails && !editMode) {
+      setUpdateFormData({
+        fullName: userDetails.fullName || '',
+        email: userDetails.email || '',
+        phoneNumber: userDetails.phoneNumber || '',
+        gender: userDetails.gender || '',
+        age: userDetails.age || '',
+        address: userDetails.address || '',
+        dateOfBirth: userDetails.dateOfBirth ? new Date(userDetails.dateOfBirth).toISOString().split('T')[0] : ''
+      });
+    }
+  }, [userDetails, editMode]);
+  
+  // Handle update user
+  const handleUpdateUser = async () => {
+    if (!selectedUser || !userDetails) {
+      showToast("Không tìm thấy thông tin người dùng", "error");
+      return;
+    }
+    
+    try {
+      setUpdatingUser(true);
+      
+      const userId = selectedUser?.userId || selectedUser?.id;
+      if (!userId) {
+        throw new Error('Missing userId');
+      }
+      
+      // Get privilege IDs from user details
+      const privilegesArray = userDetails?.privileges || 
+                              userDetails?.Privileges || 
+                              userDetails?.privilege || 
+                              userDetails?.Privilege || 
+                              [];
+      
+      const privilegeIds = [];
+      if (Array.isArray(privilegesArray) && privilegesArray.length > 0) {
+        privilegesArray.forEach(priv => {
+          if (typeof priv === 'object' && priv !== null) {
+            const id = priv?.privilegeId || priv?.id;
+            if (id) privilegeIds.push(typeof id === 'string' ? parseInt(id, 10) : id);
+          }
+        });
+      }
+      
+      const updatePayload = {
+        userId: userId,
+        fullName: updateFormData.fullName || null,
+        email: updateFormData.email || null,
+        phoneNumber: updateFormData.phoneNumber || null,
+        gender: updateFormData.gender || null,
+        age: updateFormData.age ? parseInt(updateFormData.age, 10) : null,
+        address: updateFormData.address || null,
+        dateOfBirth: updateFormData.dateOfBirth || null,
+        privilegeIds: privilegeIds.length > 0 ? privilegeIds : null,
+        actionType: 'update'
+      };
+      
+      console.log('Updating user:', updatePayload);
+      
+      const response = await api.patch('/User/update', updatePayload);
+      
+      console.log('API Response:', response.data);
+      
+      // Refresh user details
+      await fetchUserDetails(selectedUser);
+      
+      // Refresh the user list
+      setRefreshKey((k) => k + 1);
+      
+      setEditMode(false);
+      showToast("Cập nhật thông tin người dùng thành công!", "success");
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showToast(error.response?.data?.message || error.message || 'Cập nhật thông tin thất bại. Vui lòng thử lại.', "error");
+    } finally {
+      setUpdatingUser(false);
+    }
   };
   
   // Get available privileges that user doesn't have
@@ -263,12 +390,12 @@ export default function UserManagement() {
   // Handle add privileges
   const handleAddPrivileges = async () => {
     if (!selectedPrivilegesToAdd || selectedPrivilegesToAdd.length === 0) {
-      alert("Vui lòng chọn ít nhất một privilege để thêm");
+      showToast("Vui lòng chọn ít nhất một privilege để thêm", "warning");
       return;
     }
     
     if (!selectedUser) {
-      alert("Không tìm thấy thông tin người dùng");
+      showToast("Không tìm thấy thông tin người dùng", "error");
       return;
     }
     
@@ -360,10 +487,10 @@ export default function UserManagement() {
       setSelectedPrivilegesToAdd([]);
       setShowPrivilegeDropdown(false);
       
-      alert("Thêm privilege thành công!");
+      showToast("Thêm privilege thành công!", "success");
     } catch (error) {
       console.error('Error adding privileges:', error);
-      alert(error.response?.data?.message || error.message || 'Thêm privilege thất bại. Vui lòng thử lại.');
+      showToast(error.response?.data?.message || error.message || 'Thêm privilege thất bại. Vui lòng thử lại.', "error");
     } finally {
       setUpdatingPrivileges(false);
     }
@@ -372,7 +499,7 @@ export default function UserManagement() {
   // Handle reset privileges
   const handleResetPrivileges = async () => {
     if (!selectedUser) {
-      alert("Không tìm thấy thông tin người dùng");
+      showToast("Không tìm thấy thông tin người dùng", "error");
       return;
     }
     
@@ -380,7 +507,7 @@ export default function UserManagement() {
     if (!confirmed) return;
     
     // Hiển thị thông báo trước khi thực hiện reset
-    alert("Đang reset các privilege đã thêm. Vui lòng đợi...");
+    showToast("Đang reset các privilege đã thêm. Vui lòng đợi...", "info");
     
     try {
       setUpdatingPrivileges(true);
@@ -428,10 +555,10 @@ export default function UserManagement() {
       setShowPrivilegeDropdown(false);
       
       // Hiển thị thông báo thành công sau khi đã refresh và hiển thị privileges mới
-      alert("Reset privilege thành công! Các privilege đã được reset về trạng thái ban đầu.");
+      showToast("Reset privilege thành công! Các privilege đã được reset về trạng thái ban đầu.", "success");
     } catch (error) {
       console.error('Error resetting privileges:', error);
-      alert(error.response?.data?.message || 'Reset privilege thất bại. Vui lòng thử lại.');
+      showToast(error.response?.data?.message || 'Reset privilege thất bại. Vui lòng thử lại.', "error");
     } finally {
       setUpdatingPrivileges(false);
     }
@@ -586,7 +713,13 @@ export default function UserManagement() {
 
   // Handle create user
   const handleCreateUser = () => {
-    navigate('/create-user');
+    setShowCreateUserModal(true);
+  };
+
+  // Handle create user success
+  const handleCreateUserSuccess = () => {
+    setRefreshKey((k) => k + 1);
+    showToast('User created successfully', 'success');
   };
 
   // Handle delete user
@@ -603,9 +736,10 @@ export default function UserManagement() {
       await api.delete(`/User/delete/${userId}`);
       // refresh list
       setRefreshKey((k) => k + 1);
+      showToast('User deleted successfully', "success");
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Failed to delete user. Please try again.');
+      showToast(error.response?.data?.message || 'Failed to delete user. Please try again.', "error");
     } finally {
       setLoading(false);
     }
@@ -642,6 +776,7 @@ export default function UserManagement() {
 
   return (
     <DashboardLayout>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Main Container - Gộp tất cả vào một card, chiếm toàn bộ không gian */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200/60 min-h-[calc(100vh-64px)] overflow-hidden animate-fade-in">
@@ -742,10 +877,10 @@ export default function UserManagement() {
                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                           Email
                         </th>
-                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-40">
-                          Date of Birth / Age
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider" style={{ width: '100px' }}>
+                          Birthdate / Age
                         </th>
-                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-24">
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider" style={{ width: '60px' }}>
                           Gender
                         </th>
                         <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-32">
@@ -771,43 +906,43 @@ export default function UserManagement() {
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{user.fullName || 'N/A'}</div>
+                              <div className="text-sm font-medium text-gray-900">{user.fullName || '_________'}</div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{user.email || 'N/A'}</div>
+                            <div className="text-sm text-gray-900">{user.email || '_________'}</div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-40">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" style={{ width: '100px' }}>
                             <div>
                               <div className="text-sm font-medium text-gray-900">{formatDate(user.dateOfBirth)}</div>
-                              <div className="text-sm text-gray-500">{user.age ? `${user.age} years old` : 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{user.age ? `${user.age} years old` : '_________'}</div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-24">
-                            <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" style={{ width: '60px' }}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
                               user.gender === 'Male' || user.gender === 'male'
                                 ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200/50' 
                                 : user.gender === 'Female' || user.gender === 'female'
                                 ? 'bg-gradient-to-r from-pink-100 to-pink-50 text-pink-800 border border-pink-200/50'
                                 : 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 border border-gray-200/50'
                             }`}>
-                              {user.gender || 'N/A'}
+                              {user.gender || 'Other'}
                             </span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-32">
-                            {user.phoneNumber || 'N/A'}
+                            {user.phoneNumber || '_________'}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-40">
                             <span className="font-mono text-xs">{user.identifyNumber || 'N/A'}</span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={user.address}>
+                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs break-words whitespace-normal" title={user.address}>
                             {user.address || 'N/A'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <div className="flex items-center gap-2">
+                          <td className="px-6 py-4 text-sm">
+                            <div className="flex flex-col gap-1.5">
                               <button 
                                 onClick={() => handleViewClick(user)}
-                                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-blue-50 to-blue-100/50 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-blue-200/50 hover:border-blue-300"
+                                className="flex items-center justify-center gap-1.5 px-3 py-1 text-xs bg-gradient-to-r from-blue-50 to-blue-100/50 text-blue-700 rounded-md hover:from-blue-100 hover:to-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow border border-blue-200/50 hover:border-blue-300 w-full"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                                 View
@@ -815,7 +950,7 @@ export default function UserManagement() {
                               <button
                                 onClick={() => handleDeleteUser(user)}
                                 disabled={loading}
-                                className="flex items-center gap-1.5 px-3.5 py-2 text-xs bg-gradient-to-r from-red-50 to-red-100/50 text-red-700 rounded-lg hover:from-red-100 hover:to-red-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md border border-red-200/50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center justify-center gap-1.5 px-3 py-1 text-xs bg-gradient-to-r from-red-50 to-red-100/50 text-red-700 rounded-md hover:from-red-100 hover:to-red-200 transition-all duration-200 font-medium shadow-sm hover:shadow border border-red-200/50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed w-full"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Delete
@@ -847,17 +982,70 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold">User Details</h2>
-                    <p className="text-blue-100 text-sm">{selectedUser?.fullName}</p>
+                    <p className="text-blue-100 text-sm">{selectedUser?.fullName || selectedUser?.email}</p>
                   </div>
+                  {hasMissingFields() && (
+                    <div className="flex items-center gap-2 ml-4 px-3 py-1.5 bg-yellow-500/20 rounded-lg border border-yellow-400/30">
+                      <AlertTriangle className="w-4 h-4 text-yellow-200" />
+                      <span className="text-xs font-medium text-yellow-100">Missing Information</span>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={closeModal}
-                  className="text-white hover:text-gray-200 hover:bg-white/10 rounded-lg p-2 transition-all duration-200"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-2">
+                  {!editMode ? (
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
+                        hasMissingFields() 
+                          ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white animate-pulse' 
+                          : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                      }`}
+                    >
+                      <Save className="w-4 h-4" />
+                      Update
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleUpdateUser}
+                        disabled={updatingUser}
+                        className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-sm transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Save className="w-4 h-4" />
+                        {updatingUser ? 'Saving...' : 'Save Changes'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditMode(false);
+                          // Reset form data
+                          if (userDetails) {
+                            setUpdateFormData({
+                              fullName: userDetails.fullName || '',
+                              email: userDetails.email || '',
+                              phoneNumber: userDetails.phoneNumber || '',
+                              gender: userDetails.gender || '',
+                              age: userDetails.age || '',
+                              address: userDetails.address || '',
+                              dateOfBirth: userDetails.dateOfBirth ? new Date(userDetails.dateOfBirth).toISOString().split('T')[0] : ''
+                            });
+                          }
+                        }}
+                        disabled={updatingUser}
+                        className="px-4 py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={closeModal}
+                    className="text-white hover:text-gray-200 hover:bg-white/10 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -878,20 +1066,165 @@ export default function UserManagement() {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-600">Email</label>
-                        <p className="text-gray-900">{userDetails.email}</p>
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.fullName) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Full Name
+                          {isFieldMissing(userDetails.fullName) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={updateFormData.fullName}
+                            onChange={(e) => setUpdateFormData({...updateFormData, fullName: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter full name"
+                          />
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.fullName) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.fullName || "-"}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600">Phone</label>
-                        <p className="text-gray-900">{userDetails.phoneNumber || "-"}</p>
+                        <label className={`block text-sm font-medium ${
+                          !isFieldMissing(userDetails.email) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Email
+                        </label>
+                        {editMode ? (
+                          <input
+                            type="email"
+                            value={updateFormData.email}
+                            onChange={(e) => setUpdateFormData({...updateFormData, email: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter email"
+                          />
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.email) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.email || "-"}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600">Age</label>
-                        <p className="text-gray-900">{userDetails.age}</p>
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.phoneNumber) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Phone Number
+                          {isFieldMissing(userDetails.phoneNumber) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <input
+                            type="tel"
+                            value={updateFormData.phoneNumber}
+                            onChange={(e) => setUpdateFormData({...updateFormData, phoneNumber: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter phone number"
+                          />
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.phoneNumber) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.phoneNumber || "-"}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600">Gender</label>
-                        <p className="text-gray-900">{userDetails.gender || "-"}</p>
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.age) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Age
+                          {isFieldMissing(userDetails.age) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={updateFormData.age}
+                            onChange={(e) => setUpdateFormData({...updateFormData, age: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter age"
+                            min="0"
+                          />
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.age) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.age || "-"}
+                          </p>
+                        )}
+                      </div>
+                      <div className="md:col-span-1 max-w-[60px]">
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.gender) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Gender
+                          {isFieldMissing(userDetails.gender) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <select
+                            value={updateFormData.gender}
+                            onChange={(e) => setUpdateFormData({...updateFormData, gender: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Select gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.gender) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.gender || "-"}
+                          </p>
+                        )}
+                      </div>
+                      <div className="md:col-span-1 max-w-[100px]">
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.dateOfBirth) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Date of Birth
+                          {isFieldMissing(userDetails.dateOfBirth) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <input
+                            type="date"
+                            value={updateFormData.dateOfBirth}
+                            onChange={(e) => setUpdateFormData({...updateFormData, dateOfBirth: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        ) : (
+                          <p className={`mt-1 ${isFieldMissing(userDetails.dateOfBirth) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.dateOfBirth ? formatDate(userDetails.dateOfBirth) : "-"}
+                          </p>
+                        )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className={`flex items-center gap-2 text-sm font-medium ${
+                          !isFieldMissing(userDetails.address) ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          Address
+                          {isFieldMissing(userDetails.address) && (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                          )}
+                        </label>
+                        {editMode ? (
+                          <textarea
+                            value={updateFormData.address}
+                            onChange={(e) => setUpdateFormData({...updateFormData, address: e.target.value})}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter address"
+                            rows="2"
+                          />
+                        ) : (
+                          <p className={`mt-1 break-words whitespace-normal ${isFieldMissing(userDetails.address) ? 'text-yellow-600 font-medium' : 'text-gray-900'}`}>
+                            {userDetails.address || "-"}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -929,11 +1262,43 @@ export default function UserManagement() {
                   {/* Privileges */}
                   <div className="bg-white rounded-xl p-5 border border-purple-200 shadow-sm bg-gradient-to-br from-purple-50/50 to-purple-100/30">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-purple-700 rounded-full"></div>
-                        Privileges
-                      </h3>
+                      <div className="flex items-center gap-3 flex-1">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                          <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-purple-700 rounded-full"></div>
+                          Privileges
+                        </h3>
+                        {(() => {
+                          const privilegesArray = userDetails?.privileges || 
+                                                  userDetails?.Privileges || 
+                                                  userDetails?.privilege || 
+                                                  userDetails?.Privilege || 
+                                                  [];
+                          const count = Array.isArray(privilegesArray) ? privilegesArray.length : 0;
+                          return count > 0 ? (
+                            <span className="text-sm text-gray-600 font-medium">
+                              ({count} {count === 1 ? 'privilege' : 'privileges'})
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => setPrivilegesExpanded(!privilegesExpanded)}
+                          className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1.5"
+                          title={privilegesExpanded ? "Collapse" : "Expand"}
+                        >
+                          {privilegesExpanded ? (
+                            <>
+                              <ChevronUp className="w-4 h-4" />
+                              Collapse
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              Expand
+                            </>
+                          )}
+                        </button>
                         <button
                           onClick={() => setShowPrivilegeDropdown(!showPrivilegeDropdown)}
                           disabled={updatingPrivileges || privilegesLoading}
@@ -1020,68 +1385,99 @@ export default function UserManagement() {
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {(() => {
-                        // Get privileges array with multiple fallbacks
-                        const privilegesArray = userDetails?.privileges || 
-                                                userDetails?.Privileges || 
-                                                userDetails?.privilege || 
-                                                userDetails?.Privilege || 
-                                                [];
-                        
-                        const normalizedPrivileges = Array.isArray(privilegesArray) 
-                          ? privilegesArray 
-                          : [];
-                        
-                        console.log('Rendering privileges:', {
-                          userDetails,
-                          privilegesArray,
-                          normalizedPrivileges,
-                          count: normalizedPrivileges.length
-                        });
-                        
-                        if (normalizedPrivileges.length > 0) {
-                          return normalizedPrivileges.map((privilege, index) => {
-                            // Handle both string and object formats
-                            const privilegeName = typeof privilege === 'string' 
-                              ? privilege 
-                              : privilege?.name || privilege?.privilegeName || privilege?.Name || String(privilege);
-                            
-                            return (
-                              <div
-                                key={`${privilegeName}-${index}`}
-                                className="bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm font-medium text-purple-800 hover:bg-purple-100 transition-colors"
-                                title={privilegeName}
-                              >
-                                {privilegeName}
-                              </div>
-                            );
+                    {/* Collapsible Privileges Content */}
+                    <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                      privilegesExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-2">
+                        {(() => {
+                          // Get privileges array with multiple fallbacks
+                          const privilegesArray = userDetails?.privileges || 
+                                                  userDetails?.Privileges || 
+                                                  userDetails?.privilege || 
+                                                  userDetails?.Privilege || 
+                                                  [];
+                          
+                          const normalizedPrivileges = Array.isArray(privilegesArray) 
+                            ? privilegesArray 
+                            : [];
+                          
+                          console.log('Rendering privileges:', {
+                            userDetails,
+                            privilegesArray,
+                            normalizedPrivileges,
+                            count: normalizedPrivileges.length
                           });
-                        } else {
-                          return (
-                            <p className="text-gray-500 col-span-full">No privileges assigned</p>
-                          );
-                        }
-                      })()}
-                    </div>
-                    {/* Debug info */}
-                    {userDetails && (
-                      <div className="mt-2 text-xs text-gray-400">
-                        Total privileges: {(() => {
-                          const privs = userDetails?.privileges || 
-                                       userDetails?.Privileges || 
-                                       userDetails?.privilege || 
-                                       userDetails?.Privilege || 
-                                       [];
-                          return Array.isArray(privs) ? privs.length : 0;
+                          
+                          if (normalizedPrivileges.length > 0) {
+                            return normalizedPrivileges.map((privilege, index) => {
+                              // Handle both string and object formats
+                              const privilegeName = typeof privilege === 'string' 
+                                ? privilege 
+                                : privilege?.name || privilege?.privilegeName || privilege?.Name || String(privilege);
+                              
+                              return (
+                                <div
+                                  key={`${privilegeName}-${index}`}
+                                  className="bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm font-medium text-purple-800 hover:bg-purple-100 transition-colors break-words overflow-wrap-anywhere min-w-0"
+                                  title={privilegeName}
+                                >
+                                  {privilegeName}
+                                </div>
+                              );
+                            });
+                          } else {
+                            return (
+                              <p className="text-gray-500 col-span-full">No privileges assigned</p>
+                            );
+                          }
                         })()}
-                        {process.env.NODE_ENV === 'development' && (
-                          <span className="ml-2">
-                            (Raw: {JSON.stringify(userDetails.privileges || userDetails.Privileges || 'none')})
-                          </span>
-                        )}
                       </div>
-                    )}
+                    </div>
+                    
+                    {/* Collapsed View - Show first few privileges */}
+                    {!privilegesExpanded && (() => {
+                      const privilegesArray = userDetails?.privileges || 
+                                              userDetails?.Privileges || 
+                                              userDetails?.privilege || 
+                                              userDetails?.Privilege || 
+                                              [];
+                      const normalizedPrivileges = Array.isArray(privilegesArray) ? privilegesArray : [];
+                      
+                      if (normalizedPrivileges.length > 0) {
+                        const visibleCount = 3;
+                        const visiblePrivileges = normalizedPrivileges.slice(0, visibleCount);
+                        const remainingCount = normalizedPrivileges.length - visibleCount;
+                        
+                        return (
+                          <div className="pt-2">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {visiblePrivileges.map((privilege, index) => {
+                                const privilegeName = typeof privilege === 'string' 
+                                  ? privilege 
+                                  : privilege?.name || privilege?.privilegeName || privilege?.Name || String(privilege);
+                                
+                                return (
+                                  <div
+                                    key={`${privilegeName}-${index}`}
+                                    className="bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm font-medium text-purple-800 break-words overflow-wrap-anywhere min-w-0"
+                                    title={privilegeName}
+                                  >
+                                    {privilegeName}
+                                  </div>
+                                );
+                              })}
+                              {remainingCount > 0 && (
+                                <div className="text-sm text-gray-600 font-medium px-3 py-2">
+                                  +{remainingCount} privilege{remainingCount > 1 ? 's' : ''} khác
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -1107,6 +1503,13 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+
+      {/* Create User Modal */}
+      <CreateUserModal
+        isOpen={showCreateUserModal}
+        onClose={() => setShowCreateUserModal(false)}
+        onSuccess={handleCreateUserSuccess}
+      />
     </div>
     </DashboardLayout>
   );

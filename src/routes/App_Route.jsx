@@ -20,6 +20,7 @@ import MyPatientPage from "../pages/Patient/MyPatientPage";
 import TestOrderPage from "../pages/TestOrder/TestOrderPage";
 import CreateTestOrderPage from "../pages/TestOrder/CreateTestOrderPage";
 import MedicalRecordListPage from "../pages/MedicalRecord/MedicalRecordListPage";
+import FlaggingConfigPage from "../pages/Configuration_Management/FlaggingConfigPage";
 
 import UserManagement from "../pages/General/UserManagementPage";
 
@@ -173,6 +174,14 @@ const router = createBrowserRouter([
           </button>
         </div>
       </div>
+    ),
+  },
+  {
+    path: "/flagging-config",
+    element: (
+      <ProtectedRoute requiredPrivileges={["VIEW_CONFIGURATION"]}>
+        <FlaggingConfigPage />
+      </ProtectedRoute>
     ),
   },
 ]);

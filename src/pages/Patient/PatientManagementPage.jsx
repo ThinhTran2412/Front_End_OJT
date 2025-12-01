@@ -283,13 +283,13 @@ export default function PatientManagementPage() {
                   <table className="w-full">
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
                       <tr>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider" style={{ width: '250px' }}>
                           Full Name
                         </th>
-                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-40">
-                          Date of Birth / Age
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider" style={{ width: '100px' }}>
+                          Birthdate / Age
                         </th>
-                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-24">
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider" style={{ width: '60px' }}>
                           Gender
                         </th>
                         <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-32">
@@ -313,20 +313,20 @@ export default function PatientManagementPage() {
                           className="hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-transparent transition-all duration-300 group animate-fade-in"
                           style={{ animationDelay: `${index * 0.05}s` }}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap" style={{ width: '250px' }}>
                             <div>
                               <div className="text-sm font-medium text-gray-900">{patient.fullName}</div>
                               <div className="text-sm text-gray-500">{patient.email}</div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-40">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" style={{ width: '100px' }}>
                             <div>
                               <div className="text-sm font-medium text-gray-900">{formatDate(patient.dateOfBirth)}</div>
                               <div className="text-sm text-gray-500">{patient.age} years old</div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-24">
-                            <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" style={{ width: '60px' }}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
                               patient.gender === 'Male' 
                                 ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200/50' 
                                 : 'bg-gradient-to-r from-pink-100 to-pink-50 text-pink-800 border border-pink-200/50'
@@ -337,7 +337,7 @@ export default function PatientManagementPage() {
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 w-32">
                             {patient.phoneNumber}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={patient.address}>
+                          <td className="px-6 py-4 text-sm text-gray-900 break-words whitespace-normal" title={patient.address}>
                             {patient.address}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

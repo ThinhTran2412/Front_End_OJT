@@ -10,6 +10,7 @@ import { usePrivileges } from '../../hooks/usePrivileges';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { LoadingOverlay, InlineLoader } from '../../components/Loading';
+import CreateRoleModal from '../../components/modals/CreateRoleModal';
 
 export default function RoleManagement() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function RoleManagement() {
 
   const [total, setTotal] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
 
   const { roles, loading, error, setRoles, setLoading, setError } = useRoleStore();
   const { privileges, loading: privilegesLoading, error: privilegesError } = usePrivileges();
@@ -222,8 +224,13 @@ export default function RoleManagement() {
   );
 
   const handleCreateRole = useCallback(() => {
-    navigate('/role-management/create');
-  }, [navigate]);
+    setShowCreateRoleModal(true);
+  }, []);
+
+  const handleCreateRoleSuccess = useCallback(() => {
+    fetchRoles(filters);
+    setSuccessMessage('Role created successfully!');
+  }, [fetchRoles, filters]);
 
   const handleDeleteRole = useCallback(
     async (roleId) => {
@@ -408,6 +415,13 @@ export default function RoleManagement() {
           </div>
         </div>
       </div>
+
+      {/* Create Role Modal */}
+      <CreateRoleModal
+        isOpen={showCreateRoleModal}
+        onClose={() => setShowCreateRoleModal(false)}
+        onSuccess={handleCreateRoleSuccess}
+      />
     </DashboardLayout>
   );
 }

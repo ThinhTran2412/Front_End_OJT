@@ -14,19 +14,22 @@ export function Toast({ message, type = 'success', onClose }) {
   const icons = {
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
     error: <XCircle className="w-5 h-5 text-red-500" />,
-    info: <AlertCircle className="w-5 h-5 text-blue-500" />
+    info: <AlertCircle className="w-5 h-5 text-blue-500" />,
+    warning: <AlertCircle className="w-5 h-5 text-yellow-500" />
   };
 
   const bgColors = {
     success: 'bg-green-50 border-green-200',
     error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200'
+    info: 'bg-blue-50 border-blue-200',
+    warning: 'bg-yellow-50 border-yellow-200'
   };
 
   const textColors = {
     success: 'text-green-800',
     error: 'text-red-800',
-    info: 'text-blue-800'
+    info: 'text-blue-800',
+    warning: 'text-yellow-800'
   };
 
   return (

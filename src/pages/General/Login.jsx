@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import logoImg from '../../assets/icons/logo.png';
@@ -171,13 +171,17 @@ export default function Login() {
 
       {/* Logo - Top Left with extra div */}
       <div className="absolute top-6 left-6 flex items-center space-x-4">
-        {/* Logo */}
-        <img src={logoImg} alt="Logo" className="w-20 h-20 object-contain" />
-        
-        {/* Extra div next to logo */}
-        <div className="p-2">
-          <span className="text-blue-800 text-2xl font-bold">Laboratory Management</span>
-        </div>
+        {/* Logo with link to home */}
+        <Link to="/home" className="flex items-center space-x-4 hover:opacity-80 transition-opacity duration-200">
+          <img src={logoImg} alt="Logo" className="w-10 h-10 object-contain" />
+          
+          {/* Extra div next to logo */}
+          <div className="p-2">
+            <span className="text-blue-800 text-2xl font-bold hover:text-blue-900 transition-colors duration-200">
+              Laboratory Management
+            </span>
+          </div>
+        </Link>
       </div>
 
 

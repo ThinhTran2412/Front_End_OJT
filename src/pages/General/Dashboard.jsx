@@ -2,43 +2,24 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { LoadingOverlay, InlineLoader } from '../../components/Loading';
-import { 
-  Card, 
-  Title, 
-  Text, 
-  Metric, 
-  Flex, 
-  ProgressBar,
-  Badge,
-  Grid,
-  Tab,
-  TabList,
-  TabGroup,
-  TabPanel,
-  TabPanels,
-  Table,
-  TableHead,
-  TableRow,
-  TableHeaderCell,
-  TableBody,
-  TableCell
-} from '@tremor/react';
 import {
+  LineChart,
+  Line,
   AreaChart,
   Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  RadialBarChart,
+  RadialBar
 } from 'recharts';
 import { 
   Users, 
@@ -46,20 +27,26 @@ import {
   ClipboardList, 
   Activity,
   TrendingUp,
+  TrendingDown,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  Heart,
-  Stethoscope,
-  TestTube,
+  DollarSign,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  MoreVertical,
+  Sparkles,
+  Zap,
+  Target,
+  BarChart3,
+  PieChart as PieChartIcon,
+  LineChart as LineChartIcon
 } from 'lucide-react';
 import api from '../../services/api';
 import { getAllPatients } from '../../services/PatientService';
 import { getAllMedicalRecords } from '../../services/MedicalRecordService';
+import AlphaVantageService from '../../services/AlphaVantageService';
 
-// API functions for dashboard data
+// API functions
 const getRoles = async () => {
   try {
     const response = await api.get('/Roles', {
@@ -96,75 +83,160 @@ const getTestOrders = async () => {
   }
 };
 
-// Generate mock data for charts
-const generateMockChartData = () => {
-  const last7Days = [];
-  const today = new Date();
+// Format currency
+const formatCurrency = (value, currency = 'VND') => {
+  if (!value || isNaN(value)) return '0';
+  const numValue = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
   
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    
-    // Generate realistic data with some variation
-    const baseValue = 15 + Math.floor(Math.random() * 20);
-    const completed = Math.floor(baseValue * 0.6 + Math.random() * 5);
-    const pending = Math.floor(baseValue * 0.3 + Math.random() * 3);
-    
-    last7Days.push({
-      date: dateStr,
-      'Completed': completed,
-      'Pending': pending,
-      'Total': baseValue
-    });
+  if (numValue >= 1000000000000) {
+    return `${(numValue / 1000000000000).toFixed(2)}T ${currency}`;
+  } else if (numValue >= 1000000000) {
+    return `${(numValue / 1000000000).toFixed(2)}B ${currency}`;
+  } else if (numValue >= 1000000) {
+    return `${(numValue / 1000000).toFixed(2)}M ${currency}`;
+  } else if (numValue >= 1000) {
+    return `${(numValue / 1000).toFixed(2)}K ${currency}`;
   }
-  
-  return last7Days;
+  return `${numValue.toLocaleString()} ${currency}`;
 };
 
-const generateMockLineChartData = () => {
-  const last30Days = [];
-  const today = new Date();
+// Simple KPI Card with clean design
+const PremiumKPICard = ({ title, value, change, icon: Icon, iconColor = 'blue', delay = 0 }) => {
+  const isPositive = change >= 0;
   
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    
-    last30Days.push({
-      date: dateStr,
-      'Patients': 20 + Math.floor(Math.random() * 15),
-      'Tests': 15 + Math.floor(Math.random() * 20),
-      'Results': 12 + Math.floor(Math.random() * 18)
-    });
+  // Simple icon colors - subtle backgrounds
+  const iconColors = {
+    blue: { bg: 'bg-blue-50', icon: 'text-blue-600' },
+    green: { bg: 'bg-emerald-50', icon: 'text-emerald-600' },
+    purple: { bg: 'bg-purple-50', icon: 'text-purple-600' },
+    orange: { bg: 'bg-orange-50', icon: 'text-orange-600' },
+    pink: { bg: 'bg-pink-50', icon: 'text-pink-600' },
+    indigo: { bg: 'bg-indigo-50', icon: 'text-indigo-600' }
+  };
+
+  const colors = iconColors[iconColor] || iconColors.blue;
+
+  return (
+    <div
+      className="group relative overflow-hidden rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300"
+      style={{
+        animation: `fadeInUp 0.6s ease-out ${delay}s both`,
+        aspectRatio: '9/6'
+      }}
+    >
+      <div className="relative h-full p-5 flex flex-col">
+        {/* Header: Icon and Change indicator */}
+        <div className="flex items-start justify-between mb-4">
+          {/* Simple icon */}
+          <div className={`p-2.5 rounded-lg ${colors.bg}`}>
+            <Icon className={`w-5 h-5 ${colors.icon}`} />
+          </div>
+          
+          {/* Change indicator */}
+          {change !== undefined && (
+            <div className={`flex items-center gap-1 text-xs font-semibold ${
+              isPositive ? 'text-emerald-600' : 'text-red-600'
+            }`}>
+              {isPositive ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              )}
+              {Math.abs(change).toFixed(1)}%
+            </div>
+          )}
+        </div>
+
+        {/* Main value */}
+        <div className="flex-1 flex items-center">
+          <div className="text-3xl font-bold text-gray-900">
+            {typeof value === 'string' ? value : formatCurrency(value)}
+          </div>
+        </div>
+
+        {/* Footer: Title and change text */}
+        <div className="mt-auto">
+          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          {change !== undefined && (
+            <p className="text-xs text-gray-400">
+              {isPositive ? '+' : ''}{change.toFixed(2)}% vs last month
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Premium Chart Card with glassmorphism
+const PremiumChartCard = ({ title, subtitle, children, tabs, activeTab, onTabChange, className = "" }) => {
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-500 flex flex-col h-full ${className}`}>
+      {/* Animated border gradient */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-20 transition-opacity duration-500 -z-10 blur-xl" />
+      
+      <div className="relative p-6 flex flex-col flex-1">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-1">{title}</h3>
+            {subtitle && <p className="text-sm text-gray-500 font-medium">{subtitle}</p>}
+          </div>
+        </div>
+        
+        {/* Tabs */}
+        {tabs ? (
+          <div className="flex gap-2 mb-4 p-1 bg-gray-100/50 rounded-xl backdrop-blur-sm">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => onTabChange?.(tab)}
+                className={`flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
+                  activeTab === tab
+                    ? 'bg-white text-blue-600 shadow-md scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-4 h-[45px]"></div>
+        )}
+        
+        {/* Chart content - flex-1 để chiếm hết không gian còn lại */}
+        <div className="relative flex-1 min-h-0">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Custom Tooltip for charts
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/95 backdrop-blur-xl border border-gray-200 rounded-xl shadow-2xl p-4">
+        <p className="text-sm font-bold text-gray-900 mb-2">{label}</p>
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-2 mb-1">
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-sm font-semibold text-gray-700">{entry.name}:</span>
+            <span className="text-sm font-bold text-gray-900">{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
   }
-  
-  return last30Days;
+  return null;
 };
 
-const generateMockWeeklyData = () => {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return days.map(day => ({
-    day,
-    'Blood Tests': 12 + Math.floor(Math.random() * 8),
-    'Urine Tests': 8 + Math.floor(Math.random() * 6),
-    'X-Ray': 5 + Math.floor(Math.random() * 4),
-    'Other': 3 + Math.floor(Math.random() * 3)
-  }));
-};
-
-const generateMockTestTypeData = () => {
-  return [
-    { name: 'Complete Blood Count', value: 145, color: 'blue' },
-    { name: 'Lipid Panel', value: 98, color: 'purple' },
-    { name: 'Liver Function', value: 87, color: 'emerald' },
-    { name: 'Thyroid Test', value: 76, color: 'yellow' },
-    { name: 'Urine Analysis', value: 65, color: 'indigo' },
-    { name: 'Other Tests', value: 42, color: 'pink' }
-  ];
-};
-
-// Generate real chart data from actual test orders
+// Generate chart data
 const generateRealChartData = (testOrders) => {
   const last7Days = [];
   const today = new Date();
@@ -178,7 +250,6 @@ const generateRealChartData = (testOrders) => {
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
     
-    // Filter orders for this day
     const dayOrders = testOrders.filter(order => {
       if (!order.createdAt) return false;
       const orderDate = new Date(order.createdAt);
@@ -203,63 +274,6 @@ const generateRealChartData = (testOrders) => {
   return last7Days;
 };
 
-const generateRealTestTypeData = (testOrders) => {
-  const testTypeCounts = {};
-  
-  testOrders.forEach(order => {
-    const testType = order.testType || 'CBC';
-    // Normalize test type names
-    const normalizedType = testType.includes('CBC') ? 'CBC' : 
-                          testType.includes('Lipid') ? 'Lipid Panel' :
-                          testType.includes('Metabolic') ? 'Metabolic Panel' :
-                          testType.includes('Thyroid') ? 'Thyroid Test' :
-                          'Other';
-    
-    testTypeCounts[normalizedType] = (testTypeCounts[normalizedType] || 0) + 1;
-  });
-  
-  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
-  
-  return Object.entries(testTypeCounts).map(([name, value], index) => ({
-    name,
-    value,
-    color: colors[index % colors.length]
-  }));
-};
-
-const generateRealWeeklyData = (testOrders) => {
-  const last4Weeks = [];
-  const today = new Date();
-  
-  for (let i = 3; i >= 0; i--) {
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - (i * 7) - 6);
-    weekStart.setHours(0, 0, 0, 0);
-    
-    const weekEnd = new Date(today);
-    weekEnd.setDate(weekEnd.getDate() - (i * 7));
-    weekEnd.setHours(23, 59, 59, 999);
-    
-    const weekLabel = `Week ${4 - i}`;
-    
-    const weekOrders = testOrders.filter(order => {
-      if (!order.createdAt) return false;
-      const orderDate = new Date(order.createdAt);
-      return orderDate >= weekStart && orderDate <= weekEnd;
-    });
-    
-    last4Weeks.push({
-      week: weekLabel,
-      'Test Orders': weekOrders.length,
-      'Completed': weekOrders.filter(order => 
-        order.status === 'Completed' || order.status === 'Reviewed By AI'
-      ).length
-    });
-  }
-  
-  return last4Weeks;
-};
-
 const generateRealLineChartData = (testOrders, medicalRecords) => {
   const last30Days = [];
   const today = new Date();
@@ -273,21 +287,18 @@ const generateRealLineChartData = (testOrders, medicalRecords) => {
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
     
-    // Count orders for this day
     const dayOrders = testOrders.filter(order => {
       if (!order.createdAt) return false;
       const orderDate = new Date(order.createdAt);
       return orderDate >= dayStart && orderDate <= dayEnd;
     }).length;
     
-    // Count medical records for this day
     const dayRecords = medicalRecords.filter(record => {
       if (!record.createdAt) return false;
       const recordDate = new Date(record.createdAt);
       return recordDate >= dayStart && recordDate <= dayEnd;
     }).length;
     
-    // Count completed tests (results)
     const dayResults = testOrders.filter(order => {
       if (!order.createdAt) return false;
       const orderDate = new Date(order.createdAt);
@@ -298,7 +309,7 @@ const generateRealLineChartData = (testOrders, medicalRecords) => {
     
     last30Days.push({
       date: dateStr,
-      'Patients': dayRecords, // New medical records = new patients
+      'Patients': dayRecords,
       'Tests': dayOrders,
       'Results': dayResults
     });
@@ -307,10 +318,31 @@ const generateRealLineChartData = (testOrders, medicalRecords) => {
   return last30Days;
 };
 
+const generateMockTestTypeData = () => {
+  return [
+    { name: 'Complete Blood Count', value: 145, color: '#3b82f6' },
+    { name: 'Lipid Panel', value: 98, color: '#a855f7' },
+    { name: 'Liver Function', value: 87, color: '#22c55e' },
+    { name: 'Thyroid Test', value: 76, color: '#eab308' },
+    { name: 'Urine Analysis', value: 65, color: '#6366f1' },
+    { name: 'Other Tests', value: 42, color: '#ec4899' }
+  ];
+};
+
+const generateMockWeeklyData = () => {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return days.map(day => ({
+    day,
+    'Blood Tests': 12 + Math.floor(Math.random() * 8),
+    'Urine Tests': 8 + Math.floor(Math.random() * 6),
+    'X-Ray': 5 + Math.floor(Math.random() * 4),
+    'Other': 3 + Math.floor(Math.random() * 3)
+  }));
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [useMockData, setUseMockData] = useState(false);
   const [stats, setStats] = useState({
     totalPatients: 0,
     totalTestOrders: 0,
@@ -322,11 +354,14 @@ export default function Dashboard() {
     todayOrders: 0,
     weeklyGrowth: 0
   });
+  const [financialData, setFinancialData] = useState(null);
   const [recentTestOrders, setRecentTestOrders] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [weeklyData, setWeeklyData] = useState([]);
   const [testTypeData, setTestTypeData] = useState([]);
   const [lineChartData, setLineChartData] = useState([]);
+  const [timeFrame, setTimeFrame] = useState('Monthly');
+  const [activeView, setActiveView] = useState('Overview');
 
   useEffect(() => {
     fetchDashboardData();
@@ -336,8 +371,7 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch all data in parallel
-      const [patientsData, testOrders, medicalRecords, roles, users] = await Promise.all([
+      const [patientsData, testOrders, medicalRecords, roles, users, financial] = await Promise.all([
         getAllPatients().catch(err => {
           console.warn('Error fetching patients:', err);
           return { patients: [], totalCount: 0 };
@@ -357,27 +391,19 @@ export default function Dashboard() {
         getUsers().catch(err => {
           console.warn('Error fetching users:', err);
           return [];
+        }),
+        AlphaVantageService.getFinancialDashboardData('IBM').catch(err => {
+          console.warn('Error fetching financial data:', err);
+          return null;
         })
       ]);
 
-      // Extract totals
       const totalPatients = patientsData.totalCount || patientsData.patients?.length || 0;
       const totalMedicalRecords = Array.isArray(medicalRecords) ? medicalRecords.length : 0;
       const totalRoles = roles.length;
       const totalUsers = users.length;
-
-      console.log('Dashboard Data:', {
-        totalPatients,
-        totalTestOrders: testOrders.length,
-        totalMedicalRecords,
-        totalRoles,
-        totalUsers,
-        testOrders: testOrders.slice(0, 3), // Log first 3 for debugging
-      });
-
       const totalTestOrders = testOrders.length;
       
-      // Calculate status-based statistics
       const pendingOrders = testOrders.filter(order => 
         order.status === 'Pending' || order.status === 'Created' || order.status === 'In Progress'
       ).length;
@@ -385,7 +411,6 @@ export default function Dashboard() {
         order.status === 'Completed' || order.status === 'Reviewed By AI'
       ).length;
 
-      // Get today's orders
       const today = new Date().toISOString().split('T')[0];
       const todayOrders = testOrders.filter(order => {
         const orderDate = order.createdAt;
@@ -394,7 +419,6 @@ export default function Dashboard() {
         return date === today;
       }).length;
 
-      // Calculate this week's orders for growth calculation
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       const thisWeekOrders = testOrders.filter(order => {
@@ -402,11 +426,8 @@ export default function Dashboard() {
         if (!orderDate) return false;
         return new Date(orderDate) >= oneWeekAgo;
       }).length;
+      const weeklyGrowth = totalTestOrders > 0 ? ((thisWeekOrders / totalTestOrders) * 100) : 0;
 
-      // Calculate weekly growth percentage
-      const weeklyGrowth = totalTestOrders > 0 ? ((thisWeekOrders / totalTestOrders) * 100).toFixed(1) : 0;
-
-      // Get recent test orders (last 10)
       const recent = testOrders
         .sort((a, b) => {
           const dateA = new Date(a.createdAt || 0);
@@ -417,19 +438,16 @@ export default function Dashboard() {
         .map(order => ({
           id: order.testOrderId,
           patientName: order.patientName || 'N/A',
-          testType: order.testType || 'CBC', // Default to CBC as per your mapping
+          testType: order.testType || 'CBC',
           status: order.status || 'Created',
           createdDate: order.createdAt || 'N/A',
-          priority: order.priority || 'Normal',
-          age: order.age,
-          gender: order.gender
+          priority: order.priority || 'Normal'
         }));
 
-      // Generate chart data - mix real and mock data
-      const chartData = generateRealChartData(testOrders); // Real data for 7-day chart
-      const testTypeData = generateMockTestTypeData(); // Mock data for better visualization
-      const weeklyData = generateMockWeeklyData(); // Mock data for better visualization  
-      const lineChartData = generateRealLineChartData(testOrders, medicalRecords); // Real data for trends
+      const chartData = generateRealChartData(testOrders);
+      const testTypeData = generateMockTestTypeData();
+      const weeklyData = generateMockWeeklyData();
+      const lineChartData = generateRealLineChartData(testOrders, medicalRecords);
 
       setStats({
         totalPatients,
@@ -440,91 +458,18 @@ export default function Dashboard() {
         totalRoles,
         totalUsers,
         todayOrders,
-        weeklyGrowth: parseFloat(weeklyGrowth)
+        weeklyGrowth: parseFloat(weeklyGrowth.toFixed(1))
       });
+      setFinancialData(financial);
       setRecentTestOrders(recent);
-      setChartData(chartData); // Last 7 days from real data
+      setChartData(chartData);
       setWeeklyData(weeklyData);
       setTestTypeData(testTypeData);
       setLineChartData(lineChartData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Use mock data on error
-      setUseMockData(true);
-      const mockData = generateMockData();
-      setStats(mockData.stats);
-      setRecentTestOrders(mockData.recentOrders);
-      setChartData(mockData.chartData);
-      setWeeklyData(mockData.weeklyData);
-      setTestTypeData(mockData.testTypeData);
-      setLineChartData(mockData.lineChartData);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Generate mock test orders
-  const generateMockTestOrders = () => {
-    const statuses = ['Completed', 'Pending', 'In Progress', 'Reviewed By AI', 'Created'];
-    const testTypes = ['Complete Blood Count', 'Lipid Panel', 'Liver Function Test', 'Thyroid Test', 'Urine Analysis', 'X-Ray'];
-    const names = ['John Doe', 'Jane Smith', 'Michael Johnson', 'Sarah Williams', 'David Brown', 'Emily Davis', 'Robert Miller', 'Lisa Wilson'];
-    
-    const orders = [];
-    for (let i = 0; i < 50; i++) {
-      const daysAgo = Math.floor(Math.random() * 30);
-      const date = new Date();
-      date.setDate(date.getDate() - daysAgo);
-      
-      orders.push({
-        testOrderId: `order-${i}`,
-        id: `order-${i}`,
-        patientName: names[Math.floor(Math.random() * names.length)],
-        fullName: names[Math.floor(Math.random() * names.length)],
-        testType: testTypes[Math.floor(Math.random() * testTypes.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
-        createdDate: date.toISOString(),
-        createdAt: date.toISOString(),
-        priority: ['Normal', 'High', 'Urgent'][Math.floor(Math.random() * 3)]
-      });
-    }
-    return orders;
-  };
-
-  // Generate complete mock data
-  const generateMockData = () => {
-    return {
-      stats: {
-        totalPatients: 342,
-        totalTestOrders: 513,
-        pendingOrders: 87,
-        completedOrders: 398,
-        totalMedicalRecords: 410,
-        todayOrders: 23,
-        weeklyGrowth: 12.5
-      },
-      recentOrders: generateMockTestOrders().slice(0, 10),
-      chartData: generateMockChartData(),
-      weeklyData: generateMockWeeklyData(),
-      testTypeData: generateMockTestTypeData(),
-      lineChartData: generateMockLineChartData()
-    };
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Completed':
-      case 'Reviewed By AI':
-        return 'emerald';
-      case 'Pending':
-      case 'Created':
-        return 'yellow';
-      case 'In Progress':
-      case 'Processing':
-        return 'blue';
-      case 'Cancelled':
-        return 'red';
-      default:
-        return 'gray';
     }
   };
 
@@ -544,93 +489,55 @@ export default function Dashboard() {
     }
   };
 
-  const metricCards = [
-    {
-      title: 'Total Patients',
-      metric: stats.totalPatients,
-      icon: Users,
-      color: 'blue',
-      description: 'Registered patients',
-      trend: '+5.2%'
-    },
-    {
-      title: 'Test Orders',
-      metric: stats.totalTestOrders,
-      icon: ClipboardList,
-      color: 'purple',
-      description: 'All test orders',
-      trend: '+12.5%'
-    },
-    {
-      title: 'Pending Orders',
-      metric: stats.pendingOrders,
-      icon: Clock,
-      color: 'yellow',
-      description: 'Awaiting processing',
-      trend: '-3.1%'
-      },
-    {
-      title: 'Completed',
-      metric: stats.completedOrders,
-      icon: CheckCircle2,
-      color: 'emerald',
-      description: 'Completed tests',
-      trend: '+8.7%'
-    },
-    {
-      title: 'Today\'s Orders',
-      metric: stats.todayOrders,
-      icon: Activity,
-      color: 'indigo',
-      description: 'Orders created today',
-      trend: '+15.3%'
-      },
-    {
-      title: 'Medical Records',
-      metric: stats.totalMedicalRecords,
-      icon: FileText,
-      color: 'teal',
-      description: 'Patient records',
-      trend: '+6.1%'
-    },
-    {
-      title: 'System Roles',
-      metric: stats.totalRoles,
-      icon: Users,
-      color: 'orange',
-      description: 'User roles',
-      trend: '0%'
-    },
-    {
-      title: 'Active Users',
-      metric: stats.totalUsers,
-      icon: Users,
-      color: 'pink',
-      description: 'System users',
-      trend: '+4.2%'
-    },
-    {
-      title: 'Completion Rate',
-      metric: stats.totalTestOrders > 0 
-        ? `${Math.round((stats.completedOrders / stats.totalTestOrders) * 100)}%`
-        : '0%',
-      icon: TrendingUp,
-      color: 'green',
-      description: 'Success rate',
-      trend: `+${stats.weeklyGrowth}%`
+  const financialMetrics = financialData ? {
+    revenue: financialData.metrics.latestRevenue,
+    revenueChange: financialData.metrics.revenueGrowth,
+    netIncome: financialData.metrics.latestNetIncome,
+    profitChange: financialData.metrics.profitMargin,
+    grossProfit: financialData.metrics.latestGrossProfit,
+    grossProfitChange: financialData.annualData?.[0] && financialData.annualData?.[1]
+      ? ((financialData.annualData[0].grossProfitVND - financialData.annualData[1].grossProfitVND) / financialData.annualData[1].grossProfitVND * 100)
+      : 0
+  } : null;
+
+  const getFinancialChartData = () => {
+    if (!financialData) return [];
+    if (timeFrame === 'Monthly') {
+      return financialData.quarterlyData?.slice(0, 12).map((item, index) => ({
+        month: `M${index + 1}`,
+        label: item.quarter.substring(5, 10),
+        revenue: item.revenueVND / 1000000,
+        profit: item.netIncomeVND / 1000000
+      })) || [];
+    } else if (timeFrame === 'Quarterly') {
+      return financialData.quarterlyData?.slice(0, 8).map(item => ({
+        quarter: item.quarter.substring(5, 10),
+        revenue: item.revenueVND / 1000000,
+        profit: item.netIncomeVND / 1000000
+      })) || [];
+    } else {
+      return financialData.annualData?.map(item => ({
+        year: item.year,
+        revenue: item.revenueVND / 1000000,
+        profit: item.netIncomeVND / 1000000
+      })) || [];
     }
-  ];
+  };
+
+  const financialChartData = getFinancialChartData();
+  const financialXAxisKey = timeFrame === 'Monthly' ? 'label' : timeFrame === 'Quarterly' ? 'quarter' : 'year';
 
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <InlineLoader 
-            text="Loading dashboard" 
-            size="large" 
-            theme="blue" 
-            centered={true}
-          />
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+          <div className="text-center">
+            <div className="relative w-20 h-20 mx-auto mb-4">
+              <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <p className="text-lg font-semibold text-gray-700">Loading dashboard...</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -638,239 +545,407 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="p-8 bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 min-h-screen" style={{ fontFamily: 'Arial, sans-serif' }}>
-        {/* Header */}
-        <div className="mb-10">
-          <Title className="text-5xl font-extrabold text-gray-900 mb-3 tracking-tight" style={{ fontFamily: 'Arial, sans-serif' }}>Medical Dashboard</Title>
-          <Text className="text-lg text-gray-600 font-light" style={{ fontFamily: 'Arial, sans-serif' }}>
-            Comprehensive overview of laboratory operations and patient statistics
-          </Text>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute top-60 -left-40 w-80 h-80 bg-purple-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute bottom-40 right-1/4 w-80 h-80 bg-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
 
-        {/* Metrics Grid */}
-        <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6 mb-10">
-          {metricCards.map((card, index) => {
-            const Icon = card.icon;
-            const colorClasses = {
-              blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-500', accent: 'text-blue-600' },
-              purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-500', accent: 'text-purple-600' },
-              yellow: { bg: 'bg-yellow-50', text: 'text-yellow-600', border: 'border-yellow-500', accent: 'text-yellow-600' },
-              emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-500', accent: 'text-emerald-600' },
-              indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-500', accent: 'text-indigo-600' },
-              green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-500', accent: 'text-green-600' }
-            };
-            const colors = colorClasses[card.color] || colorClasses.blue;
-            const isPositive = card.trend?.startsWith('+');
-            return (
-              <Card 
-                key={index} 
-                className={`
-                  bg-white border-t-4 ${colors.border} 
-                  shadow-xl hover:shadow-2xl 
-                  transition-all duration-300 
-                  border border-gray-200
-                  hover:-translate-y-1
-                  rounded-lg
-                `}
-              >
-                <Flex alignItems="start">
-                  <div className="truncate flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wider">{card.title}</Text>
-                      {card.trend && (
-                        <span className={`text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {isPositive ? '↑' : '↓'} {card.trend}
-                        </span>
-                      )}
-                    </div>
-                    <Metric className="text-4xl font-extrabold mb-2 text-gray-900">{card.metric}</Metric>
-                    <Text className="text-sm text-gray-400 font-light">{card.description}</Text>
-                  </div>
-                  <div className={`p-3.5 rounded-xl ${colors.bg} ml-4 flex-shrink-0`}>
-                    <Icon className={`w-6 h-6 ${colors.text}`} />
-                  </div>
-                </Flex>
-              </Card>
-            );
-          })}
-        </Grid>
+        <div className="relative z-10 p-6 lg:p-8">
+          {/* Header with animated title */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                  Dashboard
+                </h1>
+                <p className="text-gray-600 font-medium">Comprehensive overview of laboratory operations</p>
+              </div>
+              
+              {/* View switcher */}
+              <div className="flex gap-2 bg-white/80 backdrop-blur-xl rounded-2xl p-1.5 shadow-lg border border-white/20">
+                <button
+                  onClick={() => setActiveView('Overview')}
+                  className={`px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                    activeView === 'Overview'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                      : 'text-gray-600 hover:bg-white/50'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => setActiveView('Details')}
+                  className={`px-6 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                    activeView === 'Details'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                      : 'text-gray-600 hover:bg-white/50'
+                  }`}
+                >
+                  Details
+                </button>
+              </div>
+            </div>
+          </div>
 
-        {/* Charts and Tables */}
-        <TabGroup className="mb-6">
-          <TabList className="bg-white rounded-lg p-1.5 shadow-lg border border-gray-200">
-            <Tab className="px-6 py-2.5 text-sm font-semibold">Overview</Tab>
-            <Tab className="px-6 py-2.5 text-sm font-semibold">Analytics</Tab>
-            <Tab className="px-6 py-2.5 text-sm font-semibold">Recent Orders</Tab>
-            <Tab className="px-6 py-2.5 text-sm font-semibold">Test Types</Tab>
-          </TabList>
-          <TabPanels>
-            {/* Overview Tab */}
-            <TabPanel>
-              <Grid numItems={1} numItemsLg={2} className="gap-6">
-                {/* Test Orders Trend Chart */}
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <div className="mb-6">
-                    <Title className="text-2xl font-bold text-gray-900 mb-1">Test Orders Trend</Title>
-                    <Text className="text-gray-500 text-sm font-light">Last 7 days performance</Text>
-                  </div>
-                  <div className="mt-4 h-80 w-full">
+          {/* Content based on active view */}
+          {activeView === 'Overview' ? (
+            <>
+              {/* Overview: Lab Metrics KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <PremiumKPICard
+                  title="Total Patients"
+                  value={stats.totalPatients}
+                  change={5.2}
+                  icon={Users}
+                  iconColor="blue"
+                  delay={0.1}
+                />
+                <PremiumKPICard
+                  title="Test Orders"
+                  value={stats.totalTestOrders}
+                  change={12.5}
+                  icon={ClipboardList}
+                  iconColor="purple"
+                  delay={0.2}
+                />
+                <PremiumKPICard
+                  title="Completed"
+                  value={stats.completedOrders}
+                  change={8.7}
+                  icon={CheckCircle2}
+                  iconColor="green"
+                  delay={0.3}
+                />
+                <PremiumKPICard
+                  title="Pending"
+                  value={stats.pendingOrders}
+                  change={-3.1}
+                  icon={Clock}
+                  iconColor="orange"
+                  delay={0.4}
+                />
+              </div>
+
+              {/* Overview Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              {/* Test Orders Trend */}
+              <PremiumChartCard
+                title="Test Orders Trend"
+                subtitle="Last 7 days performance overview"
+                >
+                  <div className="h-96 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0.1}/>
+                        </linearGradient>
+                        <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#eab308" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#eab308" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#6b7280"
+                        style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="circle"
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="Completed" 
+                        stroke="#22c55e" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorCompleted)"
+                        name="Completed"
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="Pending" 
+                        stroke="#eab308" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorPending)"
+                        name="Pending"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </PremiumChartCard>
+
+              {/* Financial Revenue Chart */}
+              {financialData && (
+                <PremiumChartCard
+                  title="Revenue Statistics"
+                  subtitle={`Total revenue ${formatCurrency(financialMetrics.revenue)}`}
+                  tabs={['Monthly', 'Quarterly', 'Annually']}
+                  activeTab={timeFrame}
+                  onTabChange={setTimeFrame}
+                >
+                  <div className="h-96 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={financialChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                          </linearGradient>
+                          <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                         <XAxis 
-                          dataKey="date" 
+                          dataKey={financialXAxisKey} 
                           stroke="#6b7280"
-                          style={{ fontSize: '0.75rem' }}
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
                         />
                         <YAxis 
                           stroke="#6b7280"
-                          style={{ fontSize: '0.75rem' }}
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                          tickFormatter={(value) => `${value}M`}
                         />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            fontSize: '0.875rem'
-                          }}
-                        />
+                        <Tooltip content={<CustomTooltip />} />
                         <Legend 
                           wrapperStyle={{ paddingTop: '20px' }}
-                          iconType="square"
+                          iconType="circle"
                         />
                         <Area 
                           type="monotone" 
-                          dataKey="Completed" 
-                          stackId="1"
+                          dataKey="revenue" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          fillOpacity={1} 
+                          fill="url(#colorRevenue)"
+                          name="Revenue"
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="profit" 
                           stroke="#22c55e" 
-                          fill="#22c55e" 
-                          fillOpacity={0.6}
-                          name="Completed"
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="Pending" 
-                          stackId="1"
-                          stroke="#eab308" 
-                          fill="#eab308" 
-                          fillOpacity={0.6}
-                          name="Pending"
+                          strokeWidth={3}
+                          fillOpacity={1} 
+                          fill="url(#colorProfit)"
+                          name="Net Income"
                         />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                </Card>
-
-                {/* Status Distribution */}
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <Title className="text-2xl font-bold text-gray-900 mb-1">Order Status Distribution</Title>
-                  <Text className="text-gray-500 text-sm font-light mb-6">Current order status breakdown</Text>
-                  <div className="mt-6 space-y-5">
-                    <div>
-                      <Flex className="mb-2 items-center justify-between">
-                        <Flex className="items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                          <Text className="font-medium">Completed</Text>
-                        </Flex>
-                        <Text className="font-bold text-lg">
-                          {stats.completedOrders} 
-                          <span className="text-sm text-gray-500 ml-1">
-                            ({stats.totalTestOrders > 0 ? Math.round((stats.completedOrders / stats.totalTestOrders) * 100) : 0}%)
-                          </span>
-                        </Text>
-                      </Flex>
-                      <ProgressBar 
-                        value={stats.totalTestOrders > 0 ? (stats.completedOrders / stats.totalTestOrders) * 100 : 0} 
-                        color="emerald" 
-                        className="mt-2 h-3"
-                      />
-                </div>
-                <div>
-                      <Flex className="mb-2 items-center justify-between">
-                        <Flex className="items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                          <Text className="font-medium">Pending</Text>
-                        </Flex>
-                        <Text className="font-bold text-lg">
-                          {stats.pendingOrders}
-                          <span className="text-sm text-gray-500 ml-1">
-                            ({stats.totalTestOrders > 0 ? Math.round((stats.pendingOrders / stats.totalTestOrders) * 100) : 0}%)
-                          </span>
-                        </Text>
-                      </Flex>
-                      <ProgressBar 
-                        value={stats.totalTestOrders > 0 ? (stats.pendingOrders / stats.totalTestOrders) * 100 : 0} 
-                        color="amber" 
-                        className="mt-2 h-3"
-                      />
-                </div>
-                    <div>
-                      <Flex className="mb-2 items-center justify-between">
-                        <Flex className="items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                          <Text className="font-medium">In Progress</Text>
-                        </Flex>
-                        <Text className="font-bold text-lg">
-                          {stats.totalTestOrders - stats.completedOrders - stats.pendingOrders}
-                        </Text>
-                      </Flex>
-                      <ProgressBar 
-                        value={stats.totalTestOrders > 0 ? ((stats.totalTestOrders - stats.completedOrders - stats.pendingOrders) / stats.totalTestOrders) * 100 : 0} 
-                        color="blue" 
-                        className="mt-2 h-3"
-                      />
-              </div>
+                </PremiumChartCard>
+              )}
             </div>
-                </Card>
-              </Grid>
-            </TabPanel>
+            </>
+          ) : (
+            <>
+              {/* Details: Financial Metrics KPI Cards */}
+              {financialMetrics && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <PremiumKPICard
+                    title="Total Revenue"
+                    value={financialMetrics.revenue}
+                    change={financialMetrics.revenueChange}
+                    icon={DollarSign}
+                    iconColor="indigo"
+                    delay={0.1}
+                  />
+                  <PremiumKPICard
+                    title="Net Income"
+                    value={financialMetrics.netIncome}
+                    change={financialMetrics.profitChange}
+                    icon={TrendingUp}
+                    iconColor="green"
+                    delay={0.2}
+                  />
+                  <PremiumKPICard
+                    title="Gross Profit"
+                    value={financialMetrics.grossProfit}
+                    change={financialMetrics.grossProfitChange}
+                    icon={BarChart3}
+                    iconColor="purple"
+                    delay={0.3}
+                  />
+                  <PremiumKPICard
+                    title="Today's Orders"
+                    value={stats.todayOrders}
+                    change={15.3}
+                    icon={Activity}
+                    iconColor="pink"
+                    delay={0.4}
+                  />
+                </div>
+              )}
 
-            {/* Analytics Tab */}
-            <TabPanel>
-              <Grid numItems={1} numItemsLg={2} className="gap-6 mb-6">
-                {/* Weekly Test Distribution */}
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <Title className="text-2xl font-bold text-gray-900 mb-1">Weekly Test Distribution</Title>
-                  <Text className="text-gray-500 text-sm font-light mb-6">Tests by category this week</Text>
-                  <div className="mt-4 h-80 w-full">
+              {/* Details View - Full Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch">
+                {/* Activity Trend */}
+                <PremiumChartCard
+                  title="Activity Trend"
+                  subtitle="30 days comprehensive analysis"
+                  tabs={['Monthly', 'Quarterly', 'Annually']}
+                  activeTab={timeFrame}
+                  onTabChange={setTimeFrame}
+                >
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={weeklyData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <LineChart data={lineChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                         <XAxis 
-                          dataKey="day" 
+                          dataKey="date" 
                           stroke="#6b7280"
-                          style={{ fontSize: '0.75rem' }}
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
                         />
                         <YAxis 
                           stroke="#6b7280"
-                          style={{ fontSize: '0.75rem' }}
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
                         />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            fontSize: '0.875rem'
-                          }}
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend 
+                          wrapperStyle={{ paddingTop: '20px' }}
+                          iconType="line"
                         />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Patients" 
+                          stroke="#3b82f6" 
+                          strokeWidth={4}
+                          dot={{ r: 5, fill: '#3b82f6' }}
+                          activeDot={{ r: 8 }}
+                          name="Patients"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Tests" 
+                          stroke="#22c55e" 
+                          strokeWidth={4}
+                          dot={{ r: 5, fill: '#22c55e' }}
+                          activeDot={{ r: 8 }}
+                          name="Tests"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Results" 
+                          stroke="#eab308" 
+                          strokeWidth={4}
+                          dot={{ r: 5, fill: '#eab308' }}
+                          activeDot={{ r: 8 }}
+                          name="Results"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </PremiumChartCard>
+
+                {/* Weekly Distribution */}
+                <PremiumChartCard
+                  title="Weekly Test Distribution"
+                  subtitle="Tests by category this week"
+                >
+                  <div className="h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={weeklyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                        <XAxis 
+                          dataKey="day" 
+                          stroke="#6b7280"
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                        />
+                        <YAxis 
+                          stroke="#6b7280"
+                          style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
                         <Legend 
                           wrapperStyle={{ paddingTop: '20px' }}
                           iconType="square"
                         />
-                        <Bar dataKey="Blood Tests" fill="#3b82f6" name="Blood Tests" />
-                        <Bar dataKey="Urine Tests" fill="#a855f7" name="Urine Tests" />
-                        <Bar dataKey="X-Ray" fill="#22c55e" name="X-Ray" />
-                        <Bar dataKey="Other" fill="#eab308" name="Other" />
+                        <Bar dataKey="Blood Tests" fill="#3b82f6" radius={[12, 12, 0, 0]} />
+                        <Bar dataKey="Urine Tests" fill="#a855f7" radius={[12, 12, 0, 0]} />
+                        <Bar dataKey="X-Ray" fill="#22c55e" radius={[12, 12, 0, 0]} />
+                        <Bar dataKey="Other" fill="#eab308" radius={[12, 12, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                </Card>
+                </PremiumChartCard>
+              </div>
+
+              {/* Bottom Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch">
+                {/* Financial Performance */}
+                {financialData && (
+                  <PremiumChartCard
+                    title="Financial Performance"
+                    subtitle="Revenue and profit comparison"
+                    tabs={['Monthly', 'Quarterly', 'Annually']}
+                    activeTab={timeFrame}
+                    onTabChange={setTimeFrame}
+                  >
+                    <div className="h-96">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={financialChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                          <XAxis 
+                            dataKey={financialXAxisKey} 
+                            stroke="#6b7280"
+                            style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                          />
+                          <YAxis 
+                            stroke="#6b7280"
+                            style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                            tickFormatter={(value) => `${value}M`}
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend 
+                            wrapperStyle={{ paddingTop: '20px' }}
+                            iconType="line"
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="revenue" 
+                            stroke="#3b82f6" 
+                            strokeWidth={4}
+                            dot={{ r: 5, fill: '#3b82f6' }}
+                            activeDot={{ r: 8 }}
+                            name="Revenue"
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="profit" 
+                            stroke="#22c55e" 
+                            strokeWidth={4}
+                            dot={{ r: 5, fill: '#22c55e' }}
+                            activeDot={{ r: 8 }}
+                            name="Net Income"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </PremiumChartCard>
+                )}
 
                 {/* Test Types Distribution */}
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <Title className="text-2xl font-bold text-gray-900 mb-1">Test Types Distribution</Title>
-                  <Text className="text-gray-500 text-sm font-light mb-6">Most requested test types</Text>
-                  <div className="mt-4 h-80 w-full">
+                <PremiumChartCard
+                  title="Test Types Distribution"
+                  subtitle="Most requested test types"
+                >
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -879,309 +954,133 @@ export default function Dashboard() {
                           cy="50%"
                           labelLine={false}
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={100}
+                          outerRadius={120}
                           innerRadius={60}
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {testTypeData.map((entry, index) => {
-                            const colors = ['#3b82f6', '#a855f7', '#22c55e', '#eab308', '#6366f1', '#ec4899'];
-                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                          })}
+                          {testTypeData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
                         </Pie>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            fontSize: '0.875rem'
-                          }}
-                        />
+                        <Tooltip content={<CustomTooltip />} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                   <div className="mt-6 grid grid-cols-2 gap-3">
-                    {testTypeData.map((item, index) => {
-                      const colorMap = {
-                        blue: 'bg-blue-500',
-                        purple: 'bg-purple-500',
-                        emerald: 'bg-emerald-500',
-                        yellow: 'bg-yellow-500',
-                        indigo: 'bg-indigo-500',
-                        pink: 'bg-pink-500'
-                      };
-                      return (
-                        <div key={index} className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${colorMap[item.color] || 'bg-gray-500'}`}></div>
-                          <Text className="text-sm text-gray-600 flex-1 truncate">{item.name}</Text>
-                          <Text className="text-sm font-semibold text-gray-900">{item.value}</Text>
-                        </div>
-                      );
-                    })}
-          </div>
-                </Card>
-              </Grid>
-              
-              {/* Line Chart - 30 Days Trend */}
-              <Card className="bg-white shadow-xl border border-gray-200 rounded-lg mt-6">
-                <Title className="text-2xl font-bold text-gray-900 mb-1">30 Days Activity Trend</Title>
-                <Text className="text-gray-500 text-sm font-light mb-6">Patients, Tests, and Results over the last 30 days</Text>
-                <div className="mt-4 h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={lineChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="#6b7280"
-                        style={{ fontSize: '0.75rem' }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis 
-                        stroke="#6b7280"
-                        style={{ fontSize: '0.75rem' }}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'white', 
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          fontSize: '0.875rem'
-                        }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="line"
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Patients" 
-                        stroke="#3b82f6" 
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Tests" 
-                        stroke="#22c55e" 
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Results" 
-                        stroke="#eab308" 
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            </TabPanel>
-
-            {/* Recent Orders Tab */}
-            <TabPanel>
-              <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <Title className="text-2xl font-bold text-gray-900 mb-1">Recent Test Orders</Title>
-                    <Text className="text-gray-500 text-sm font-light">Latest 10 test orders</Text>
+                    {testTypeData.map((item, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div>
+                        <p className="text-sm text-gray-600 flex-1 truncate font-medium">{item.name}</p>
+                        <p className="text-sm font-bold text-gray-900">{item.value}</p>
+                      </div>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => navigate('/test-orders')}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-semibold shadow-md hover:shadow-lg"
-                  >
-                    View All
-                  </button>
-                </div>
-                <Table className="mt-4">
-                  <TableHead>
-                    <TableRow>
-                      <TableHeaderCell>Patient Name</TableHeaderCell>
-                      <TableHeaderCell>Test Type</TableHeaderCell>
-                      <TableHeaderCell>Priority</TableHeaderCell>
-                      <TableHeaderCell>Status</TableHeaderCell>
-                      <TableHeaderCell>Created Date</TableHeaderCell>
-                      <TableHeaderCell>Action</TableHeaderCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {recentTestOrders.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-gray-500 py-12">
-                          <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                          <Text>No test orders found</Text>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      recentTestOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-gray-50 transition-colors">
-                          <TableCell>
-                            <Flex className="items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                <Users className="w-4 h-4 text-blue-600" />
+                </PremiumChartCard>
+              </div>
+
+              {/* Recent Orders Table */}
+              <PremiumChartCard
+                title="Recent Test Orders"
+                subtitle="Latest 10 test orders"
+                className="mb-6"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Patient</th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Test Type</th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Priority</th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {recentTestOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-12">
+                            <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                            <p className="text-gray-500">No test orders found</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        recentTestOrders.map((order) => (
+                          <tr key={order.id} className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-purple-50/50 transition-all duration-200">
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                                  <Users className="w-5 h-5 text-white" />
+                                </div>
+                                <p className="font-semibold text-gray-900">{order.patientName}</p>
                               </div>
-                              <Text className="font-medium">{order.patientName}</Text>
-                            </Flex>
-                          </TableCell>
-                          <TableCell>
-                            <Text>{order.testType}</Text>
-                          </TableCell>
-                          <TableCell>
-                            <span 
-                              className={`
-                                inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold
-                                ${
+                            </td>
+                            <td className="px-4 py-4 text-sm font-medium text-gray-700">{order.testType}</td>
+                            <td className="px-4 py-4">
+                              <span 
+                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${
                                   order.priority === 'Urgent' 
-                                    ? 'text-red-700 bg-red-50 border border-red-200' :
+                                    ? 'bg-red-100 text-red-700 border-2 border-red-200' :
                                   order.priority === 'High' 
-                                    ? 'text-amber-700 bg-amber-50 border border-amber-200' 
-                                    : 'text-gray-700 bg-gray-50 border border-gray-200'
-                                }
-                              `}
-                            >
-                              {order.priority}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span 
-                              className={`
-                                inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold
-                                ${
+                                    ? 'bg-amber-100 text-amber-700 border-2 border-amber-200' 
+                                    : 'bg-gray-100 text-gray-700 border-2 border-gray-200'
+                                }`}
+                              >
+                                {order.priority}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span 
+                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${
                                   order.status === 'Completed' || order.status === 'Reviewed By AI'
-                                    ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' :
+                                    ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-200' :
                                   order.status === 'Pending' || order.status === 'Created'
-                                    ? 'text-amber-700 bg-amber-50 border border-amber-200' :
+                                    ? 'bg-amber-100 text-amber-700 border-2 border-amber-200' :
                                   order.status === 'In Progress' || order.status === 'Processing'
-                                    ? 'text-blue-700 bg-blue-50 border border-blue-200' :
+                                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-200' :
                                   order.status === 'Cancelled'
-                                    ? 'text-red-700 bg-red-50 border border-red-200'
-                                    : 'text-gray-700 bg-gray-50 border border-gray-200'
-                                }
-                              `}
-                            >
-                              {order.status}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Text className="text-sm">{formatDate(order.createdDate)}</Text>
-                          </TableCell>
-                          <TableCell>
-                            <button
-                              onClick={() => navigate(`/test-orders`)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
-                            >
-                              View Details
-                            </button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </Card>
-            </TabPanel>
-                  
-            {/* Test Types Tab */}
-            <TabPanel>
-              <Grid numItems={1} numItemsLg={2} className="gap-6">
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <Title className="text-2xl font-bold text-gray-900 mb-1">Test Types Overview</Title>
-                  <Text className="text-gray-500 text-sm font-light mb-6">Detailed breakdown by test type</Text>
-                  <div className="mt-6 space-y-4">
-                    {testTypeData.map((item, index) => {
-                      const colorMap = {
-                        blue: { text: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
-                        purple: { text: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
-                        emerald: { text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-                        yellow: { text: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-                        indigo: { text: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
-                        pink: { text: 'text-pink-700', bg: 'bg-pink-50', border: 'border-pink-200' }
-                      };
-                      const colors = colorMap[item.color] || colorMap.blue;
-                      return (
-                        <div key={index} className="p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all">
-                          <Flex className="items-center justify-between mb-2">
-                            <Text className="font-semibold text-gray-900">{item.name}</Text>
-                            <span className={`px-3 py-1 rounded-md text-sm font-semibold ${colors.text} ${colors.bg} ${colors.border} border`}>
-                              {item.value}
-                            </span>
-                          </Flex>
-                          <ProgressBar 
-                            value={(item.value / testTypeData.reduce((sum, t) => sum + t.value, 0)) * 100} 
-                            color={item.color}
-                            className="mt-2"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-
-                <Card className="bg-white shadow-xl border border-gray-200 rounded-lg">
-                  <Title className="text-2xl font-bold text-gray-900 mb-1">Quick Actions</Title>
-                  <Text className="text-gray-500 text-sm font-light mb-6">Common tasks and shortcuts</Text>
-                  <div className="mt-6 space-y-3">
-                    <button
-                      onClick={() => navigate('/test-orders/create')}
-                      className="w-full flex items-center gap-4 p-5 bg-white border-2 border-gray-200 hover:border-blue-500 hover:shadow-lg rounded-lg transition-all duration-200 text-left group"
-                    >
-                      <div className="p-2.5 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-                        <ClipboardList className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <Text className="font-bold text-gray-900 text-base">Create Test Order</Text>
-                        <Text className="text-sm text-gray-500">Add a new test order for a patient</Text>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => navigate('/patients')}
-                      className="w-full flex items-center gap-4 p-5 bg-white border-2 border-gray-200 hover:border-green-500 hover:shadow-lg rounded-lg transition-all duration-200 text-left group"
-                    >
-                      <div className="p-2.5 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-                        <Users className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="flex-1">
-                        <Text className="font-bold text-gray-900 text-base">Manage Patients</Text>
-                        <Text className="text-sm text-gray-500">View and manage patient records</Text>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => navigate('/test-orders')}
-                      className="w-full flex items-center gap-4 p-5 bg-white border-2 border-gray-200 hover:border-purple-500 hover:shadow-lg rounded-lg transition-all duration-200 text-left group"
-                    >
-                      <div className="p-2.5 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div className="flex-1">
-                        <Text className="font-bold text-gray-900 text-base">View All Orders</Text>
-                        <Text className="text-sm text-gray-500">Browse all test orders</Text>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => navigate('/medical-records')}
-                      className="w-full flex items-center gap-4 p-5 bg-white border-2 border-gray-200 hover:border-indigo-500 hover:shadow-lg rounded-lg transition-all duration-200 text-left group"
-                    >
-                      <div className="p-2.5 bg-indigo-50 rounded-lg group-hover:bg-indigo-100 transition-colors">
-                        <Stethoscope className="w-5 h-5 text-indigo-600" />
+                                    ? 'bg-red-100 text-red-700 border-2 border-red-200'
+                                    : 'bg-gray-100 text-gray-700 border-2 border-gray-200'
+                                }`}
+                              >
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-sm font-medium text-gray-600">{formatDate(order.createdDate)}</td>
+                            <td className="px-4 py-4">
+                              <button
+                                onClick={() => navigate('/test-orders')}
+                                className="text-blue-600 hover:text-blue-800 font-bold hover:underline transition-colors"
+                              >
+                                View →
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-                      <div className="flex-1">
-                        <Text className="font-bold text-gray-900 text-base">Medical Records</Text>
-                        <Text className="text-sm text-gray-500">Access patient medical history</Text>
-          </div>
-                    </button>
+              </PremiumChartCard>
+            </>
+          )}
         </div>
-                </Card>
-              </Grid>
-            </TabPanel>
-          </TabPanels>
-        </TabGroup>
       </div>
+
+      {/* Add CSS animations */}
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </DashboardLayout>
   );
 }

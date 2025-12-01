@@ -12,7 +12,7 @@ const UNIFIED_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const IAM_ENDPOINTS = ['/Auth', '/User', '/Role', '/EventLog', '/PatientInfo', '/Registers'];
 
 // Endpoints that should route to Laboratory Service
-const LABORATORY_ENDPOINTS = ['/Patient', '/TestOrder', '/TestResult', '/MedicalRecord', '/ai-review'];
+const LABORATORY_ENDPOINTS = ['/Patient', '/TestOrder', '/TestResult', '/MedicalRecord', '/ai-review', '/FlaggingConfig', '/Comment', '/Financial'];
 
 // Determine which service to use based on endpoint
 const getServiceUrl = (url) => {

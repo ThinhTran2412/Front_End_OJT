@@ -113,6 +113,7 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
     { id: 'user-management', label: 'User Management', path: '/users', requiredPrivilege: 'VIEW_USER' },
     { id: 'medical-records', label: 'Medical Records', path: '/medical-records', requiredPrivilege: 'VIEW_USER' },
     { id: 'test-orders', label: 'Test Order Management', path: '/test-orders', requiredPrivilege: 'VIEW_USER' },
+    { id: 'flagging-config', label: 'Flagging Configuration', path: '/flagging-config', requiredPrivilege: 'VIEW_CONFIGURATION' },
     { id: 'role-management', label: 'Role Management', path: '/role-management', requiredPrivilege: 'VIEW_ROLE' },
     { id: 'event-logs', label: 'Event Logs', path: '/event-logs', requiredPrivilege: 'VIEW_EVENT_LOGS' },
   ];

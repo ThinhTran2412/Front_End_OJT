@@ -534,24 +534,6 @@ export default function TestOrderPage() {
                   <table className="w-full">
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
                       <tr>
-                        <th className={`px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider transition-all duration-300 ${showOrderId ? 'w-64' : 'w-48'}`}>
-                          <div className="flex items-center justify-between">
-                            <span className={`transition-all duration-300 ${showOrderId ? 'opacity-100' : 'opacity-30'}`}>
-                              Order ID
-                            </span>
-                            <button
-                              onClick={() => setShowOrderId(!showOrderId)}
-                              className={`ml-2 p-1.5 rounded-md transition-all duration-200 hover:bg-gray-200 ${
-                                showOrderId 
-                                  ? 'text-blue-600 bg-blue-50' 
-                                  : 'text-gray-500 bg-gray-100'
-                              }`}
-                              title={showOrderId ? 'Hide Order ID Data' : 'Show Order ID Data'}
-                            >
-                              {showOrderId ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-                        </th>
                         <th className={`px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider transition-all duration-300 ${showOrderId ? 'w-44' : 'w-48'}`}>
                           Patient Info
                         </th>
@@ -582,13 +564,6 @@ export default function TestOrderPage() {
                           className="hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-transparent transition-all duration-300 group animate-fade-in"
                           style={{ animationDelay: `${index * 0.05}s` }}
                         >
-                          <td className={`px-4 py-4 whitespace-nowrap transition-all duration-300 ${showOrderId ? 'w-64' : 'w-48'}`}>
-                            <div className={`text-xs font-mono text-gray-600 transition-all duration-300 ${
-                              showOrderId ? 'opacity-100' : 'opacity-5'
-                            }`} title={order.testOrderId}>
-                              {order.testOrderId}
-                            </div>
-                          </td>
                           <td className={`px-4 py-4 whitespace-nowrap transition-all duration-300 ${showOrderId ? 'w-44' : 'w-48'}`}>
                             <div>
                               <div className="text-sm font-medium text-gray-900 truncate" title={order.patientName}>

@@ -727,7 +727,7 @@ export default function Home() {
           </div>
 
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400 text-sm">
-            <p>&copy; 2024 Lab Management. All rights reserved.</p>
+            <h1>&copy; This is a mock project created solely for educational purposes.</h1>
           </div>
         </div>
       </footer>

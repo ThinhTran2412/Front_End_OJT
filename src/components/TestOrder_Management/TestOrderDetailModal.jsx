@@ -10,7 +10,9 @@ import {
 } from '../../services/AiReviewService';
 import { getTestResultsByTestOrderId, processFromSimulator } from '../../services/TestResultService';
 import TestResultsList from './TestResultsList';
+import CommentsSection from './CommentsSection';
 import { useToast } from '../Toast';
+import BloodTestAnimation from '../animations/BloodTestAnimation';
 
 /**
  * Test Order Detail Modal
@@ -25,17 +27,41 @@ export default function TestOrderDetailModal({
   const [testOrder, setTestOrder] = useState(null);
   const [testResults, setTestResults] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingTestResults, setLoadingTestResults] = useState(true);
   const [isAiReviewEnabled, setIsAiReviewEnabled] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [aiReviewedResults, setAiReviewedResults] = useState([]);
+  const [showAnimation, setShowAnimation] = useState(false);
+  const [countdown, setCountdown] = useState(10);
   const { showToast } = useToast();
 
   useEffect(() => {
     if (isOpen && testOrderId) {
       console.log('Modal opened with testOrderId:', testOrderId);
-      fetchTestOrderDetail();
+      
+      // Reset states
+      setShowAnimation(true);
+      setLoading(true);
+      setCountdown(10);
+      
+      // Countdown timer
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setShowAnimation(false);
+            fetchTestOrderDetail();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => {
+        clearInterval(countdownInterval);
+      };
     } else if (isOpen && !testOrderId) {
       console.warn('Modal opened but testOrderId is missing');
     }
@@ -80,85 +106,100 @@ export default function TestOrderDetailModal({
       actualTestOrderId = orderData.testOrderId || orderData.TestOrderId || testOrderId;
       
       // Map the response to match the expected order structure
+      // TestOrderDetailDto fields: TestOrderId, PatientId, PatientName, Age, Gender, PhoneNumber, 
+      // IdentifyNumber, Status, CreatedAt, RunDate, TestType, TestResults, Message
       const order = {
         testOrderId: actualTestOrderId,
         status: orderData.status || orderData.Status || 'Unknown',
-        testType: orderData.testType || orderData.TestType || orderData.servicePackageName || 'N/A',
+        testType: orderData.testType || orderData.TestType || orderData.servicePackageName || null,
         createdAt: orderData.createdAt || orderData.CreatedAt || orderData.createdDate,
         runDate: orderData.runDate || orderData.RunDate,
-        patientName: orderData.patientName || orderData.PatientName || orderData.fullName || 'N/A',
-        identifyNumber: orderData.identifyNumber || orderData.IdentifyNumber,
-        priority: orderData.priority || orderData.Priority,
-        note: orderData.note || orderData.Note,
+        // Patient Information
+        patientName: orderData.patientName || orderData.PatientName || null,
+        age: orderData.age || orderData.Age || null,
+        gender: orderData.gender || orderData.Gender || null,
+        phoneNumber: orderData.phoneNumber || orderData.PhoneNumber || null,
+        // Priority and Note might not be in TestOrderDetailDto, try to get from order entity if available
+        priority: orderData.priority || orderData.Priority || null,
+        note: orderData.note || orderData.Note || null,
       };
       setTestOrder(order);
+      setLoading(false); // Stop main loading, start loading test results separately
 
-      // Fetch test results - try from order data first, then fallback to dedicated endpoint
-      let hasResults = false;
-      
-      if (orderData.testResults && Array.isArray(orderData.testResults)) {
-        setTestResults(orderData.testResults);
-        hasResults = true;
-      } else if (orderData.TestResults && Array.isArray(orderData.TestResults)) {
-        // Map both PascalCase and camelCase to camelCase
-        const mappedResults = orderData.TestResults.map(r => ({
-          testResultId: r.testResultId || r.TestResultId,
-          testCode: r.testCode || r.TestCode || '',
-          parameter: r.parameter || r.Parameter || '',
-          valueNumeric: r.valueNumeric !== undefined ? r.valueNumeric : r.ValueNumeric,
-          valueText: r.valueText !== undefined ? r.valueText : r.ValueText,
-          unit: r.unit || r.Unit || '',
-          referenceRange: r.referenceRange || r.ReferenceRange || '',
-          status: r.status || r.Status || '',
-          instrument: r.instrument || r.Instrument || '',
-          resultStatus: r.resultStatus || r.ResultStatus || '',
-          performedBy: r.performedBy !== undefined ? r.performedBy : r.PerformedBy,
-          performedDate: r.performedDate || r.PerformedDate,
-          reviewedBy: r.reviewedBy !== undefined ? r.reviewedBy : r.ReviewedBy,
-          reviewedDate: r.reviewedDate || r.ReviewedDate,
-          reviewedByAI: r.reviewedByAI !== undefined ? r.reviewedByAI : 
-                       (r.ReviewedByAI !== undefined ? r.ReviewedByAI : false),
-          aiReviewedDate: r.aiReviewedDate || r.AiReviewedDate,
-          isConfirmed: r.isConfirmed !== undefined ? r.isConfirmed : 
-                     (r.IsConfirmed !== undefined ? r.IsConfirmed : false),
-          confirmedByUserId: r.confirmedByUserId !== undefined ? r.confirmedByUserId : r.ConfirmedByUserId,
-          confirmedDate: r.confirmedDate || r.ConfirmedDate
-        }));
-        setTestResults(mappedResults);
-        hasResults = true;
-      }
-      
-      // If no results in order data, try dedicated endpoint
-      if (!hasResults) {
+      // Fetch test results in parallel - don't block UI
+      const loadTestResults = async () => {
         try {
-          let results = await getTestResultsByTestOrderId(actualTestOrderId);
+          setLoadingTestResults(true);
+          let hasResults = false;
           
-          // If no test results found, try to process from simulator
-          if (!results || results.length === 0) {
-            console.log('No test results found, attempting to process from simulator...');
-            try {
-              // Always use CBC for demo purposes as other test types don't have data yet
-              await processFromSimulator(actualTestOrderId, 'CBC');
-              console.log('Successfully processed from simulator with CBC test type, fetching test results again...');
-              
-              // Wait a bit for processing to complete, then fetch again
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
-              // Fetch test results again after processing
-              results = await getTestResultsByTestOrderId(actualTestOrderId);
-              console.log('Test results after processing:', results);
-            } catch (processError) {
-              console.warn('Could not process from simulator:', processError);
-              // Continue with empty results - don't throw error
-            }
+          if (orderData.testResults && Array.isArray(orderData.testResults)) {
+            setTestResults(orderData.testResults);
+            hasResults = true;
+          } else if (orderData.TestResults && Array.isArray(orderData.TestResults)) {
+            // Map both PascalCase and camelCase to camelCase
+            const mappedResults = orderData.TestResults.map(r => ({
+              testResultId: r.testResultId || r.TestResultId,
+              testCode: r.testCode || r.TestCode || '',
+              parameter: r.parameter || r.Parameter || '',
+              valueNumeric: r.valueNumeric !== undefined ? r.valueNumeric : r.ValueNumeric,
+              valueText: r.valueText !== undefined ? r.valueText : r.ValueText,
+              unit: r.unit || r.Unit || '',
+              referenceRange: r.referenceRange || r.ReferenceRange || '',
+              status: r.status || r.Status || '',
+              instrument: r.instrument || r.Instrument || '',
+              resultStatus: r.resultStatus || r.ResultStatus || '',
+              performedBy: r.performedBy !== undefined ? r.performedBy : r.PerformedBy,
+              performedDate: r.performedDate || r.PerformedDate,
+              reviewedBy: r.reviewedBy !== undefined ? r.reviewedBy : r.ReviewedBy,
+              reviewedDate: r.reviewedDate || r.ReviewedDate,
+              reviewedByAI: r.reviewedByAI !== undefined ? r.reviewedByAI : 
+                           (r.ReviewedByAI !== undefined ? r.ReviewedByAI : false),
+              aiReviewedDate: r.aiReviewedDate || r.AiReviewedDate,
+              isConfirmed: r.isConfirmed !== undefined ? r.isConfirmed : 
+                         (r.IsConfirmed !== undefined ? r.IsConfirmed : false),
+              confirmedByUserId: r.confirmedByUserId !== undefined ? r.confirmedByUserId : r.ConfirmedByUserId,
+              confirmedDate: r.confirmedDate || r.ConfirmedDate
+            }));
+            setTestResults(mappedResults);
+            hasResults = true;
           }
           
-          setTestResults(results || []);
+          // If no results in order data, try dedicated endpoint
+          if (!hasResults) {
+            let results = await getTestResultsByTestOrderId(actualTestOrderId);
+            
+            // If no test results found, try to process from simulator
+            if (!results || results.length === 0) {
+              console.log('No test results found, attempting to process from simulator...');
+              try {
+                // Always use CBC for demo purposes as other test types don't have data yet
+                await processFromSimulator(actualTestOrderId, 'CBC');
+                console.log('Successfully processed from simulator with CBC test type, fetching test results again...');
+                
+                // Wait a bit for processing to complete, then fetch again
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Fetch test results again after processing
+                results = await getTestResultsByTestOrderId(actualTestOrderId);
+                console.log('Test results after processing:', results);
+              } catch (processError) {
+                console.warn('Could not process from simulator:', processError);
+                // Continue with empty results - don't throw error
+              }
+            }
+            
+            setTestResults(results || []);
+          }
         } catch (err) {
           console.warn('Could not fetch test results:', err);
           setTestResults([]);
+        } finally {
+          setLoadingTestResults(false);
         }
-      }
+      };
+
+      // Start loading test results in parallel
+      loadTestResults();
 
       // Fetch AI review status - handle errors gracefully
       // getAiReviewStatus already handles all errors internally and returns default value
@@ -177,11 +218,12 @@ export default function TestOrderDetailModal({
       setTestOrder({
         testOrderId: testOrderId,
         status: 'Unknown',
-        testType: 'N/A',
-        patientName: 'N/A'
+        testType: null,
+        patientName: null
       });
       setTestResults([]);
       setIsAiReviewEnabled(false);
+      setLoadingTestResults(false);
     } finally {
       setLoading(false);
     }
@@ -587,15 +629,183 @@ export default function TestOrderDetailModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-          onClick={onClose}
-        />
+  // Fullscreen animation view
+  if (showAnimation) {
+    return (
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 overflow-hidden">
+        <style>{`
+          @keyframes fullScreenFadeIn {
+            from {
+              opacity: 0;
+              transform: scale(0.8);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+          @keyframes particleFloat {
+            0%, 100% {
+              transform: translateY(0px) rotate(0deg);
+              opacity: 0.3;
+            }
+            50% {
+              transform: translateY(-20px) rotate(180deg);
+              opacity: 0.7;
+            }
+          }
+          @keyframes sideGlow {
+            0%, 100% {
+              opacity: 0.2;
+              transform: scaleY(1);
+            }
+            50% {
+              opacity: 0.5;
+              transform: scaleY(1.1);
+            }
+          }
+        `}</style>
         
-        <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Background particles and effects */}
+        <div className="absolute inset-0">
+          {/* Left side glow effect */}
+          <div className="absolute left-0 top-0 w-32 h-full bg-gradient-to-r from-blue-400/20 to-transparent" style={{
+            animation: 'sideGlow 4s ease-in-out infinite'
+          }}></div>
+          
+          {/* Right side glow effect */}
+          <div className="absolute right-0 top-0 w-32 h-full bg-gradient-to-l from-purple-400/20 to-transparent" style={{
+            animation: 'sideGlow 4s ease-in-out infinite 2s'
+          }}></div>
+          
+          {/* Floating particles */}
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-white rounded-full opacity-20"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `particleFloat ${3 + Math.random() * 4}s ease-in-out infinite ${Math.random() * 2}s`
+              }}
+            ></div>
+          ))}
+          
+          {/* DNA helix pattern on sides */}
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 w-8 h-96 opacity-10">
+            <svg viewBox="0 0 32 384" className="w-full h-full">
+              <path d="M4,0 Q16,48 28,96 Q16,144 4,192 Q16,240 28,288 Q16,336 4,384" 
+                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
+              <path d="M28,0 Q16,48 4,96 Q16,144 28,192 Q16,240 4,288 Q16,336 28,384" 
+                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
+            </svg>
+          </div>
+          
+          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-8 h-96 opacity-10">
+            <svg viewBox="0 0 32 384" className="w-full h-full">
+              <path d="M4,0 Q16,48 28,96 Q16,144 4,192 Q16,240 28,288 Q16,336 4,384" 
+                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
+              <path d="M28,0 Q16,48 4,96 Q16,144 28,192 Q16,240 4,288 Q16,336 28,384" 
+                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
+            </svg>
+          </div>
+        </div>
+        
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 z-20 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-30 rounded-full p-2 backdrop-blur-sm"
+        >
+          <X className="w-8 h-8" />
+        </button>
+        
+        {/* Animation container - full screen */}
+        {loadingTestResults && (
+          <div className="relative z-10 w-full h-full flex flex-col items-center justify-center bg-white overflow-hidden" style={{
+            animation: 'fullScreenFadeIn 0.5s ease-out'
+          }}>
+            {/* Background effects */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 opacity-60"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_70%)]"></div>
+            
+            {/* Animated background pattern */}
+            <div className="absolute inset-0 opacity-20">
+              <div className="absolute inset-0" style={{
+                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.1) 2px, rgba(59,130,246,0.1) 4px)',
+                backgroundSize: '100% 100%',
+                animation: 'slideDown 20s linear infinite'
+              }}></div>
+            </div>
+
+            {/* Animation */}
+            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center overflow-hidden">
+              <div className="w-full flex-1 flex items-center justify-center" style={{ maxHeight: '85%' }}>
+                <div className="w-full h-full" style={{ aspectRatio: '3/2', maxWidth: '100%', maxHeight: '100%', transform: 'scale(1.3)' }}>
+                  <BloodTestAnimation 
+                    size="full" 
+                    showTitle={false}
+                    message=""
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+              
+              {/* Loading message at bottom */}
+              <div className="relative z-20 mt-4 text-center">
+                <p className="text-lg text-gray-600 animate-pulse">
+                  Please wait while the machine processes this blood sample...
+                </p>
+              </div>
+            </div>
+
+            <style>{`
+              @keyframes slideDown {
+                0% { transform: translateY(-100%); }
+                100% { transform: translateY(100%); }
+              }
+            `}</style>
+          </div>
+        )}
+        
+        {/* Subtle overlay for better contrast */}
+        <div className="absolute inset-0 bg-black bg-opacity-10 pointer-events-none"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{
+      animation: 'fadeIn 0.3s ease-out'
+    }}>
+      <style>{`
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+      `}</style>
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+            onClick={onClose}
+          />
+          
+          <div className="relative bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto" style={{
+            animation: 'slideInUp 0.3s ease-out'
+          }}>
           {/* Header */}
           <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b border-gray-200 z-10">
             <div>
@@ -622,29 +832,108 @@ export default function TestOrderDetailModal({
               </div>
             ) : testOrder ? (
               <div className="space-y-6">
+
                 {/* Test Order Info */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Status: </span>
-                      <span className={`font-semibold ${
-                        testOrder.status === 'Reviewed By AI' ? 'text-purple-600' :
-                        testOrder.status === 'Completed' ? 'text-green-600' :
-                        'text-gray-600'
-                      }`}>
-                        {testOrder.status || 'N/A'}
-                      </span>
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50/30 rounded-lg p-6 border border-gray-200/60">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
                     </div>
-                    <div>
-                      <span className="text-gray-500">Test Type: </span>
-                      <span className="font-medium text-gray-900">{testOrder.testType || 'N/A'}</span>
+                    Test Order Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Status</span>
+                        <span className={`font-semibold text-lg ${
+                          testOrder.status === 'Reviewed By AI' ? 'text-purple-600' :
+                          testOrder.status === 'Completed' ? 'text-green-600' :
+                          'text-gray-600'
+                        }`}>
+                          {testOrder.status || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Test Type</span>
+                        <span className="font-medium text-gray-900 text-lg">{testOrder.testType || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Priority</span>
+                        <span className={`font-medium ${testOrder.priority && testOrder.priority !== 'Normal' ? 'text-red-600' : 'text-gray-500'}`}>
+                          {testOrder.priority || '-'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Patient</span>
+                        <span className="font-medium text-gray-900 text-lg">{testOrder.patientName || '-'}</span>
+                      </div>
+                      {testOrder.age && (
+                        <div>
+                          <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Age</span>
+                          <span className="font-medium text-gray-900">{testOrder.age} years</span>
+                        </div>
+                      )}
+                      {testOrder.gender && (
+                        <div>
+                          <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Gender</span>
+                          <span className="font-medium text-gray-900">{testOrder.gender}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Created</span>
+                        <span className="font-medium text-gray-900">
+                          {testOrder.createdAt ? new Date(testOrder.createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : '-'}
+                        </span>
+                      </div>
+                      {testOrder.runDate && (
+                        <div>
+                          <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Run Date</span>
+                          <span className="font-medium text-gray-900">
+                            {new Date(testOrder.runDate).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {testOrder.phoneNumber && (
+                        <div>
+                          <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium">Phone</span>
+                          <span className="font-medium text-gray-900">{testOrder.phoneNumber}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
+                  {testOrder.note && (
+                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <span className="text-gray-500 block text-xs uppercase tracking-wider font-medium mb-1">Note</span>
+                      <span className="text-gray-700">{testOrder.note}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* AI Review Controls */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between gap-4">
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200/60 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                    </div>
+                    AI Review & Analysis
+                  </h3>
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                     {/* Toggle AI Review Switch */}
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-gray-700">
@@ -676,17 +965,17 @@ export default function TestOrderDetailModal({
                       <button
                         onClick={handleTriggerAiReview}
                         disabled={triggering || loading}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-3 text-sm bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                       >
                         {triggering ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Reviewing...
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span className="font-medium">AI Analyzing...</span>
                           </>
                         ) : (
                           <>
-                            <Sparkles className="w-4 h-4" />
-                            AI Review
+                            <Sparkles className="w-5 h-5" />
+                            <span className="font-medium">Start AI Review</span>
                           </>
                         )}
                       </button>
@@ -705,17 +994,17 @@ export default function TestOrderDetailModal({
                           <button
                             onClick={handleConfirm}
                             disabled={confirming || loading}
-                            className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 px-6 py-3 text-sm bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                           >
                             {confirming ? (
                               <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Confirming...
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span className="font-medium">Confirming...</span>
                               </>
                             ) : (
                               <>
-                                <CheckCircle2 className="w-4 h-4" />
-                                Confirm ({unconfirmedCount})
+                                <CheckCircle2 className="w-5 h-5" />
+                                <span className="font-medium">Confirm Results ({unconfirmedCount})</span>
                               </>
                             )}
                           </button>
@@ -725,86 +1014,25 @@ export default function TestOrderDetailModal({
 
                     {/* Status Badge */}
                     {testOrder.status === 'Reviewed By AI' && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">
-                        <Sparkles className="w-4 h-4" />
-                        Reviewed By AI
-                      </span>
+                      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-purple-50 border border-purple-200 rounded-lg">
+                        <Sparkles className="w-5 h-5 text-purple-600 animate-pulse" />
+                        <span className="text-sm font-semibold text-purple-800">AI Review Completed</span>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {/* AI Reviewed Results Section - Show after trigger */}
-                {aiReviewedResults.length > 0 && (
-                  <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-5 h-5 text-purple-600" />
-                      <h3 className="text-lg font-semibold text-purple-900">
-                        AI Reviewed Results ({aiReviewedResults.length})
-                      </h3>
-                    </div>
-                    <div className="space-y-3">
-                      {aiReviewedResults.map((result, index) => {
-                        const testResultId = result.testResultId || result.TestResultId || index;
-                        return (
-                          <div 
-                            key={testResultId}
-                            className="bg-white rounded-lg p-3 border border-purple-200"
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold text-gray-900">
-                                {result.parameter || result.Parameter || 'Unknown'}
-                              </span>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                <Sparkles className="w-3 h-3" />
-                                AI Reviewed
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                              <div>
-                                <span className="text-gray-500">Value: </span>
-                                <span className="font-medium">
-                                  {(result.valueNumeric !== null && result.valueNumeric !== undefined) || 
-                                   (result.ValueNumeric !== null && result.ValueNumeric !== undefined)
-                                    ? (result.valueNumeric ?? result.ValueNumeric)
-                                    : (result.valueText || result.ValueText || 'N/A')}
-                                </span>
-                              </div>
-                              {(result.unit || result.Unit) && (
-                                <div>
-                                  <span className="text-gray-500">Unit: </span>
-                                  <span className="font-medium">{result.unit || result.Unit}</span>
-                                </div>
-                              )}
-                              {(result.referenceRange || result.ReferenceRange) && (
-                                <div>
-                                  <span className="text-gray-500">Reference: </span>
-                                  <span className="font-medium">{result.referenceRange || result.ReferenceRange}</span>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-gray-500">Status: </span>
-                                <span className="font-semibold text-purple-600">
-                                  {result.resultStatus || result.ResultStatus || 'Completed'}
-                                </span>
-                              </div>
-                            </div>
-                            {(result.aiReviewedDate || result.AiReviewedDate) && (
-                              <div className="mt-2 text-xs text-gray-500">
-                                Reviewed: {new Date(result.aiReviewedDate || result.AiReviewedDate).toLocaleString()}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Test Results */}
                 <TestResultsList
                   testOrderId={testOrderId}
                   testResults={testResults}
                   onConfirm={handleConfirm}
+                />
+
+                {/* Comments Section */}
+                <CommentsSection
+                  testOrderId={testOrder?.testOrderId || testOrderId}
+                  testResults={testResults}
                 />
               </div>
             ) : (
