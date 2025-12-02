@@ -101,7 +101,7 @@ const formatCurrency = (value, currency = 'VND') => {
 };
 
 // Simple KPI Card with clean design
-const PremiumKPICard = ({ title, value, change, icon: Icon, iconColor = 'blue', delay = 0 }) => {
+const PremiumKPICard = ({ title, value, change, icon: Icon, iconColor = 'blue', delay = 0, isCurrency = false }) => {
   const isPositive = change >= 0;
   
   // Simple icon colors - subtle backgrounds
@@ -115,6 +115,13 @@ const PremiumKPICard = ({ title, value, change, icon: Icon, iconColor = 'blue', 
   };
 
   const colors = iconColors[iconColor] || iconColors.blue;
+
+  // Format display value
+  const displayValue = typeof value === 'string' 
+    ? value 
+    : isCurrency 
+      ? formatCurrency(value) 
+      : value.toLocaleString();
 
   return (
     <div
@@ -150,7 +157,7 @@ const PremiumKPICard = ({ title, value, change, icon: Icon, iconColor = 'blue', 
         {/* Main value */}
         <div className="flex-1 flex items-center">
           <div className="text-3xl font-bold text-gray-900">
-            {typeof value === 'string' ? value : formatCurrency(value)}
+            {displayValue}
           </div>
         </div>
 
