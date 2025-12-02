@@ -87,6 +87,17 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
   if (typeof userPrivileges === 'string') userPrivileges = [userPrivileges];
   if (!Array.isArray(userPrivileges)) userPrivileges = [];
 
+  const hasViewUserPrivilege = userPrivileges.includes('VIEW_USER');
+  const hasManagementPrivilege = [
+    'VIEW_ROLE',
+    'VIEW_CONFIGURATION',
+    'VIEW_EVENT_LOGS',
+    'CREATE_TEST_ORDER'
+  ].some((p) => userPrivileges.includes(p));
+
+  // Default user: no management/view privileges -> only see own medical records (readonly)
+  const isDefaultUser = !hasViewUserPrivilege && !hasManagementPrivilege;
+
   // Logout confirm handler
   const handleLogout = () => setShowLogoutModal(true);
   
@@ -119,15 +130,17 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
   ];
 
   // Filter menu items based on privileges
-  const menuItems = allMenuItems.filter((item) => {
-    if (item.showOnlyForUsers && isAdmin) {
-      return false;
-    }
-    if (item.requiredPrivilege) {
-      return userPrivileges.includes(item.requiredPrivilege);
-    }
-    return true;
-  });
+  const menuItems = isDefaultUser
+    ? allMenuItems.filter((item) => item.id === 'medical-records')
+    : allMenuItems.filter((item) => {
+        if (item.showOnlyForUsers && isAdmin) {
+          return false;
+        }
+        if (item.requiredPrivilege) {
+          return userPrivileges.includes(item.requiredPrivilege);
+        }
+        return true;
+      });
 
   // Check if path is active
   const isActive = (path) => {

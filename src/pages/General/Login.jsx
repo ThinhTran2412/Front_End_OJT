@@ -30,11 +30,38 @@ export default function Login() {
   const navigate = useNavigate();
   const { login, isAuthenticated, initializeAuth } = useAuthStore();
 
+  const getUserFromStorage = () => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveHomePath = () => {
+    const storedUser = getUserFromStorage();
+    const rawPrivileges =
+      storedUser?.privileges ||
+      storedUser?.Privilege ||
+      storedUser?.Privileges ||
+      [];
+
+    let privileges = rawPrivileges;
+    if (typeof privileges === 'string') privileges = [privileges];
+    if (!Array.isArray(privileges)) privileges = [];
+
+    const hasViewUser = privileges.includes('VIEW_USER');
+
+    // Default user (no VIEW_USER privilege) -> go to own medical records
+    return hasViewUser ? '/dashboard' : '/medical-records';
+  };
+
   // Check if already logged in then redirect to dashboard
   useEffect(() => {
     initializeAuth();
     if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate(resolveHomePath(), { replace: true });
     }
   }, [isAuthenticated, navigate, initializeAuth]);
 
@@ -122,28 +149,57 @@ export default function Login() {
         localStorage.setItem('user', JSON.stringify(userData));
         login(userData, accessToken, refreshToken, userData?.roleId);
         
-        // Navigate to dashboard
-        navigate('/dashboard');
+        // Navigate based on privileges
+        navigate(resolveHomePath());
       }
     } catch (error) {
       console.error('Login error:', error);
       const status = error.response?.status;
       const data = error.response?.data;
-
+    
       console.log('Response status:', status);
       console.log('Response data:', data);
-
+    
+      // Extract error message from backend
+      let backendMessage = '';
+      
+      // Try to get the actual error message from different possible locations
+      if (data?.title) {
+        backendMessage = data.title;
+      } else if (data?.detail) {
+        backendMessage = data.detail;
+      } else if (data?.message) {
+        backendMessage = data.message;
+      } else if (typeof data === 'string') {
+        backendMessage = data;
+      }
+    
+      // Extract only the main error message (first line before stack trace)
+      // Extract only the main error message (first line before stack trace)
+      if (backendMessage) {
+        // Split by newline and take only the first line
+        const firstLine = backendMessage.split('\n')[0].trim();
+        // Remove "Exception:" suffix if exists
+        backendMessage = firstLine.replace(/Exception:\s*$/, '').trim();
+        // Remove exception class name prefix (e.g., "IAM_Service.Application.Common.Exceptions.AccountLockedException:")
+        backendMessage = backendMessage.replace(/^[\w.]+Exception:\s*/, '').trim();
+      }
+    
       if (status === 401) {
-        // Code 401: Unauthorized
-        setErrorMessage(data.detail || 'Invalid credentials');
+        // Code 401: Invalid Credentials
+        setErrorMessage(backendMessage || 'Invalid credentials. Please check your email and password.');
         setErrorType('unauthorized');
-      } else if (status === 429) {
-        // Code 429: Account Locked
-        setErrorMessage(data.detail || 'Account is locked');
+      } else if (status === 403 || status === 429) {
+        // Code 403/429: Account Locked
+        setErrorMessage(backendMessage || 'Your account is locked due to multiple failed login attempts.');
         setErrorType('locked');
+      } else if (status === 400) {
+        // Code 400: Bad Request (validation errors, etc.)
+        setErrorMessage(backendMessage || 'Invalid request. Please check your input.');
+        setErrorType('validation');
       } else {
         // Other errors
-        setErrorMessage('Login failed. Please try again.');
+        setErrorMessage(backendMessage || 'Login failed. Please try again.');
         setErrorType('general');
       }
     } finally {
@@ -207,26 +263,11 @@ export default function Login() {
 
           {/* Error Message */}
           {errorMessage && (
-            <Alert 
-              severity={errorType === 'locked' ? 'error' : 'warning'} 
-              sx={{ mb: 3, borderRadius: 2 }}
-            >
-              <Box>
-                <Typography variant="body2" fontWeight="medium">
-                  {errorMessage}
-                </Typography>
-                {errorType === 'unauthorized' && (
-                  <Typography variant="caption" sx={{ mt: 0.5, display: 'block' }}>
-                    Please check your credentials and try again.
-                  </Typography>
-                )}
-                {errorType === 'locked' && (
-                  <Typography variant="caption" sx={{ mt: 0.5, display: 'block' }}>
-                    Your account has been temporarily locked due to multiple failed login attempts.
-                  </Typography>
-                )}
-              </Box>
-            </Alert>
+            <div className="mb-4 text-center">
+              <p className={`text-sm font-medium ${errorType === 'locked' ? 'text-red-600' : 'text-red-600'}`}>
+                {errorMessage}
+              </p>
+            </div>
           )}
 
           {/* Login Form */}
@@ -389,4 +430,3 @@ export default function Login() {
     </div>
   );
 }
-

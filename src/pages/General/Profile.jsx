@@ -10,10 +10,10 @@ import {
   Typography,
   Paper,
   Grid,
-  Card,
-  CardContent,
   Divider,
-  CircularProgress
+  CircularProgress,
+  Avatar,
+  Chip
 } from '@mui/material';
 import { Edit, Save, Cancel } from '@mui/icons-material';
 
@@ -97,9 +97,8 @@ export default function Profile() {
       try {
         const token = accessToken || localStorage.getItem("accessToken");
 
-        // Call API with correct query param
         const res = await api.get(`/User/getUserProfile`, {
-          params: { userId }, // Pass userId as query parameter
+          params: { userId },
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -191,6 +190,7 @@ export default function Profile() {
   const FieldEdit = (label, name, type = "text") => (
     <TextField
       fullWidth
+      size="small"
       label={label}
       name={name}
       type={type}
@@ -205,110 +205,286 @@ export default function Profile() {
     />
   );
 
+  const initials = (profile?.fullName || profile?.email || 'U')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
   return (
     <DashboardLayout>
-      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 3 }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 3, lg: 4 } }}>
-          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <Box sx={{ p: { xs: 3, md: 4 } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                <Typography variant="h4" component="h1" fontWeight="bold" color="primary">
-                  Profile
-                </Typography>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          py: 4,
+          px: { xs: 1, sm: 2 },
+          bgcolor: 'radial-gradient(circle at top, #e0f2fe 0, #f9fafb 45%, #eef2ff 100%)',
+        }}
+      >
+        <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
+          <Paper
+            elevation={0}
+            sx={{
+              borderRadius: 4,
+              overflow: 'hidden',
+              border: '1px solid rgba(148,163,184,0.35)',
+              backdropFilter: 'blur(14px)',
+              background:
+                'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(239,246,255,0.9))',
+              boxShadow:
+                '0 18px 45px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.6) inset',
+            }}
+          >
+            {/* Header with avatar and actions */}
+            <Box
+              sx={{
+                px: { xs: 3, md: 4 },
+                pt: { xs: 3, md: 4 },
+                pb: 3,
+                borderBottom: '1px solid rgba(148,163,184,0.35)',
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: { xs: 'flex-start', md: 'center' },
+                justifyContent: 'space-between',
+                gap: 3,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                <Avatar
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    bgcolor: 'primary.main',
+                    fontSize: 28,
+                    boxShadow: '0 14px 35px rgba(37,99,235,0.45)',
+                  }}
+                >
+                  {initials}
+                </Avatar>
+                <Box>
+                  <Typography
+                    variant="h5"
+                    fontWeight={700}
+                    sx={{
+                      background: 'linear-gradient(90deg,#1d4ed8,#7c3aed)',
+                      WebkitBackgroundClip: 'text',
+                      color: 'transparent',
+                    }}
+                  >
+                    {profile?.fullName || 'My Profile'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {profile?.email || 'View and manage your personal information.'}
+                  </Typography>
+                </Box>
+              </Box>
 
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                {!editMode && profile && (
+                  <Chip
+                    label="Profile up to date"
+                    size="small"
+                    sx={{
+                      bgcolor: 'rgba(22,163,74,0.07)',
+                      color: 'success.main',
+                      fontWeight: 500,
+                      borderRadius: 999,
+                    }}
+                  />
+                )}
                 {!editMode && profile && (
                   <Button
                     variant="contained"
                     startIcon={<Edit />}
                     onClick={() => setEditMode(true)}
                     sx={{
-                      borderRadius: 2,
+                      borderRadius: 999,
                       textTransform: 'none',
-                      px: 3
+                      px: 3,
+                      boxShadow: '0 10px 25px rgba(37,99,235,0.35)',
                     }}
                   >
                     Edit Profile
                   </Button>
                 )}
               </Box>
+            </Box>
 
-              {error && (
-                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-                  {error}
-                </Alert>
-              )}
-              
-              {success && (
-                <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
-                  {success}
-                </Alert>
-              )}
+            {/* Alerts */}
+            {(error || success) && (
+              <Box sx={{ px: { xs: 3, md: 4 }, pt: 2 }}>
+                {error && (
+                  <Alert severity="error" sx={{ mb: 1.5, borderRadius: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+                {success && (
+                  <Alert severity="success" sx={{ mb: 1.5, borderRadius: 2 }}>
+                    {success}
+                  </Alert>
+                )}
+              </Box>
+            )}
 
+            {/* Content area */}
+            <Box sx={{ px: { xs: 3, md: 4 }, py: 3.5 }}>
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                   <CircularProgress />
-                  <Typography sx={{ ml: 2 }} color="text.secondary">Loading profile...</Typography>
+                  <Typography sx={{ ml: 2 }} color="text.secondary">
+                    Loading profile...
+                  </Typography>
                 </Box>
-              ) : profile ? (
-                <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                  <CardContent sx={{ p: 4 }}>
-                    <Grid container spacing={3}>
-                      {editMode ? (
-                        <>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Full Name", "fullName")}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Email", "email", "email")}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Phone Number", "phoneNumber")}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Gender", "gender")}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Age", "age", "number")}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldEdit("Date of Birth", "dateOfBirth", "date")}
-                          </Grid>
-                          <Grid item xs={12}>
-                            {FieldEdit("Address", "address")}
-                          </Grid>
-                        </>
-                      ) : (
-                        <>
-                          <Grid item xs={12} md={6}>
-                            {FieldView("Full Name", profile.fullName)}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldView("Email", profile.email)}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldView("Phone Number", profile.phoneNumber)}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldView("Gender", profile.gender)}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldView("Age", profile.age)}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            {FieldView(
-                              "Date of Birth",
-                              profile.dateOfBirth
-                                ? new Date(profile.dateOfBirth).toLocaleDateString("en-GB")
-                                : ""
-                            )}
-                          </Grid>
-                          <Grid item xs={12}>
-                            {FieldView("Address", profile.address)}
-                          </Grid>
-                        </>
+              ) : !profile ? (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <Typography color="text.secondary">
+                    No profile data available.
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      borderRadius: 3,
+                      p: { xs: 2.5, md: 3 },
+                      bgcolor: 'white',
+                      border: '1px solid rgba(226,232,240,0.9)',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        mb: 3,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Typography variant="h6" fontWeight={600}>
+                        Personal Information
+                      </Typography>
+                      {!editMode && (
+                        <Chip
+                          label="Read-only view"
+                          size="small"
+                          sx={{
+                            bgcolor: 'grey.100',
+                            fontSize: 12,
+                            fontWeight: 500,
+                          }}
+                        />
                       )}
+                    </Box>
+
+                    {/* Grid layout 2 cột */}
+                    <Grid container spacing={3}>
+                      {/* Cột trái */}
+                      <Grid item xs={12} md={6}>
+                        {/* Basic Info */}
+                        <Box sx={{ mb: 3 }}>
+                          <Typography 
+                            variant="overline" 
+                            sx={{ 
+                              color: 'primary.main', 
+                              fontWeight: 700,
+                              letterSpacing: 1.2,
+                              display: 'block',
+                              mb: 2
+                            }}
+                          >
+                            Basic Information
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {editMode ? (
+                              <>
+                                {FieldEdit("Full Name", "fullName")}
+                                {FieldEdit("Email", "email", "email")}
+                              </>
+                            ) : (
+                              <>
+                                {FieldView("Full Name", profile.fullName)}
+                                <Divider sx={{ my: 0.5 }} />
+                                {FieldView("Email", profile.email)}
+                              </>
+                            )}
+                          </Box>
+                        </Box>
+
+                        {/* Contact Info */}
+                        <Box>
+                          <Typography 
+                            variant="overline" 
+                            sx={{ 
+                              color: 'primary.main', 
+                              fontWeight: 700,
+                              letterSpacing: 1.2,
+                              display: 'block',
+                              mb: 2
+                            }}
+                          >
+                            Contact Details
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {editMode ? (
+                              <>
+                                {FieldEdit("Phone Number", "phoneNumber")}
+                                {FieldEdit("Address", "address")}
+                              </>
+                            ) : (
+                              <>
+                                {FieldView("Phone Number", profile.phoneNumber)}
+                                <Divider sx={{ my: 0.5 }} />
+                                {FieldView("Address", profile.address)}
+                              </>
+                            )}
+                          </Box>
+                        </Box>
+                      </Grid>
+
+                      {/* Cột phải */}
+                      <Grid item xs={12} md={6}>
+                        {/* Personal Details */}
+                        <Box>
+                          <Typography 
+                            variant="overline" 
+                            sx={{ 
+                              color: 'primary.main', 
+                              fontWeight: 700,
+                              letterSpacing: 1.2,
+                              display: 'block',
+                              mb: 2
+                            }}
+                          >
+                            Personal Details
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {editMode ? (
+                              <>
+                                {FieldEdit("Gender", "gender")}
+                                {FieldEdit("Age", "age", "number")}
+                                {FieldEdit("Date of Birth", "dateOfBirth", "date")}
+                              </>
+                            ) : (
+                              <>
+                                {FieldView("Gender", profile.gender)}
+                                <Divider sx={{ my: 0.5 }} />
+                                {FieldView("Age", profile.age)}
+                                <Divider sx={{ my: 0.5 }} />
+                                {FieldView(
+                                  "Date of Birth",
+                                  profile.dateOfBirth
+                                    ? new Date(profile.dateOfBirth).toLocaleDateString("en-GB")
+                                    : ""
+                                )}
+                              </>
+                            )}
+                          </Box>
+                        </Box>
+                      </Grid>
                     </Grid>
 
+                    {/* Action buttons */}
                     {editMode && (
                       <>
                         <Divider sx={{ my: 3 }} />
@@ -345,13 +521,7 @@ export default function Profile() {
                         </Box>
                       </>
                     )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                  <Typography color="text.secondary">
-                    No profile data available.
-                  </Typography>
+                  </Paper>
                 </Box>
               )}
             </Box>

@@ -49,7 +49,7 @@ const router = createBrowserRouter([
   {
     path: "/dashboard",
     element: (
-      <ProtectedRoute>
+      <ProtectedRoute requiredPrivileges={["VIEW_USER"]}>
         <Dashboard />
       </ProtectedRoute>
     ),
@@ -141,7 +141,7 @@ const router = createBrowserRouter([
   {
     path: "/medical-records",
     element: (
-      <ProtectedRoute requiredPrivileges={["VIEW_USER"]}>
+      <ProtectedRoute>
         <MedicalRecordListPage />
       </ProtectedRoute>
     ),

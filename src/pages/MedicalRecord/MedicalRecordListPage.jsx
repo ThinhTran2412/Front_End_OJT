@@ -6,6 +6,7 @@ import { getAllMedicalRecords } from '../../services/MedicalRecordService';
 import { startExportJob } from '../../services/TestOrderService';
 import { exportTestResultsToPdf, getTestResultsByTestOrderId } from '../../services/TestResultService';
 import jobManager from '../../utils/BackgroundJobManager';
+import { useAuthStore } from '../../store/authStore';
 
 const formatDate = (value) => {
   if (!value) return 'N/A';
@@ -52,6 +53,7 @@ const normalizeRecords = (data) => {
 };
 
 export default function MedicalRecordListPage() {
+  const { isAuthenticated } = useAuthStore();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,9 +67,62 @@ export default function MedicalRecordListPage() {
   const [loadingResults, setLoadingResults] = useState(new Set());
   const [exportingPdf, setExportingPdf] = useState(new Set());
 
+  const [isReadOnlyUser, setIsReadOnlyUser] = useState(false);
+
+  const decodeJWT = (token) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveUserContext = () => {
+    const accessToken = localStorage.getItem('accessToken');
+    const storedUserRaw = localStorage.getItem('user');
+    const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+
+    const payload = accessToken ? decodeJWT(accessToken) : null;
+
+    const jwtEmail = payload?.email || payload?.Email || null;
+    const localEmail = storedUser?.email || storedUser?.Email || null;
+
+    let rawPrivileges =
+      payload?.privilege ||
+      payload?.privileges ||
+      payload?.Privilege ||
+      payload?.Privileges ||
+      storedUser?.privileges ||
+      storedUser?.Privilege ||
+      storedUser?.Privileges ||
+      [];
+
+    if (typeof rawPrivileges === 'string') rawPrivileges = [rawPrivileges];
+    if (!Array.isArray(rawPrivileges)) rawPrivileges = [];
+
+    const hasViewUserPrivilege = rawPrivileges.includes('VIEW_USER');
+
+    return {
+      email: (jwtEmail || localEmail || '').toLowerCase(),
+      hasViewUserPrivilege,
+    };
+  };
+
   useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const { hasViewUserPrivilege } = resolveUserContext();
+    setIsReadOnlyUser(!hasViewUserPrivilege);
     fetchRecords();
-  }, []);
+  }, [isAuthenticated]);
 
   const fetchRecords = async () => {
     try {
@@ -75,7 +130,24 @@ export default function MedicalRecordListPage() {
       setError(null);
 
       const data = await getAllMedicalRecords();
-      setRecords(normalizeRecords(data));
+      const normalized = normalizeRecords(data);
+
+      const { email, hasViewUserPrivilege } = resolveUserContext();
+
+      // Staff / lab users with VIEW_USER privilege see all records
+      if (hasViewUserPrivilege) {
+        setRecords(normalized);
+      } else {
+        // Default user: only see their own medical records (readonly)
+        const filtered = email
+          ? normalized.filter(
+              (record) =>
+                record.email?.toLowerCase() === email ||
+                record.createdBy?.toLowerCase() === email
+            )
+          : [];
+        setRecords(filtered);
+      }
     } catch (err) {
       console.error('Error fetching medical records:', err);
       setError(
@@ -330,32 +402,34 @@ export default function MedicalRecordListPage() {
           </div>
 
           {/* Summary cards */}
-          <div className="px-6 py-4 border-b border-gray-200/60 bg-gradient-to-r from-gray-50/50 to-white">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-                    <FileText className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Records</p>
-                    <p className="text-xl font-bold text-gray-900">{summary.totalRecords}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-sm">
-                    <CalendarDays className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Created Today</p>
-                    <p className="text-xl font-bold text-gray-900">{summary.createdToday}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+{!isReadOnlyUser && (
+  <div className="px-6 py-4 border-b border-gray-200/60 bg-gradient-to-r from-gray-50/50 to-white">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+            <FileText className="w-5 h-5 text-white" />
           </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Records</p>
+            <p className="text-xl font-bold text-gray-900">{summary.totalRecords}</p>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 p-4 hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-sm">
+            <CalendarDays className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Created Today</p>
+            <p className="text-xl font-bold text-gray-900">{summary.createdToday}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Search Section */}
           <div className="px-6 py-4 border-b border-gray-200/60 bg-white">
