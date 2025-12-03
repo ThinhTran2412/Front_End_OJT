@@ -50,6 +50,55 @@ const normalizePrivilegeIds = (initialIds) => {
   return Array.from(uniqueIds);
 };
 
+// Function to convert Vietnamese text to ASCII and format as Role Code
+// "Trần Thái Thịnh" → "Tran_Thai_Thinh"
+const generateRoleCode = (text) => {
+  if (!text) return '';
+  
+  // Vietnamese characters mapping
+  const vietnameseMap = {
+    'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+    'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+    'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+    'đ': 'd',
+    'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+    'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+    'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+    'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+    'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+    'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+    'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+    'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+    'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
+    'À': 'A', 'Á': 'A', 'Ả': 'A', 'Ã': 'A', 'Ạ': 'A',
+    'Ă': 'A', 'Ằ': 'A', 'Ắ': 'A', 'Ẳ': 'A', 'Ẵ': 'A', 'Ặ': 'A',
+    'Â': 'A', 'Ầ': 'A', 'Ấ': 'A', 'Ẩ': 'A', 'Ẫ': 'A', 'Ậ': 'A',
+    'Đ': 'D',
+    'È': 'E', 'É': 'E', 'Ẻ': 'E', 'Ẽ': 'E', 'Ẹ': 'E',
+    'Ê': 'E', 'Ề': 'E', 'Ế': 'E', 'Ể': 'E', 'Ễ': 'E', 'Ệ': 'E',
+    'Ì': 'I', 'Í': 'I', 'Ỉ': 'I', 'Ĩ': 'I', 'Ị': 'I',
+    'Ò': 'O', 'Ó': 'O', 'Ỏ': 'O', 'Õ': 'O', 'Ọ': 'O',
+    'Ô': 'O', 'Ồ': 'O', 'Ố': 'O', 'Ổ': 'O', 'Ỗ': 'O', 'Ộ': 'O',
+    'Ơ': 'O', 'Ờ': 'O', 'Ớ': 'O', 'Ở': 'O', 'Ỡ': 'O', 'Ợ': 'O',
+    'Ù': 'U', 'Ú': 'U', 'Ủ': 'U', 'Ũ': 'U', 'Ụ': 'U',
+    'Ư': 'U', 'Ừ': 'U', 'Ứ': 'U', 'Ử': 'U', 'Ữ': 'U', 'Ự': 'U',
+    'Ỳ': 'Y', 'Ý': 'Y', 'Ỷ': 'Y', 'Ỹ': 'Y', 'Ỵ': 'Y'
+  };
+
+  // Remove Vietnamese accents
+  let result = text.split('').map(char => vietnameseMap[char] || char).join('');
+  
+  // Replace spaces with underscore and remove special characters
+  result = result
+    .trim()
+    .replace(/\s+/g, '_')  // Replace spaces with underscore
+    .replace(/[^a-zA-Z0-9_]/g, '')  // Remove special characters except underscore
+    .replace(/_+/g, '_')  // Replace multiple underscores with single
+    .replace(/^_|_$/g, '');  // Remove leading/trailing underscores
+  
+  return result;
+};
+
 export default function CreateRolePage() {
   const navigate = useNavigate();
 
@@ -60,15 +109,36 @@ export default function CreateRolePage() {
     privilegeIds: [],
   });
 
-  const [errors, setErrors] = useState({}); // Add error state
+  const [errors, setErrors] = useState({});
+  const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false); // Track if user manually edited code
   const { privileges, loading: privilegesLoading, error: privilegesError } = usePrivileges();
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" })); // Reset error when user types again
+    
+    if (name === 'name') {
+      // Update name
+      setFormData((prev) => {
+        const newData = { ...prev, name: value };
+        
+        // Auto-generate code only if user hasn't manually edited it
+        if (!isCodeManuallyEdited) {
+          newData.code = generateRoleCode(value);
+        }
+        
+        return newData;
+      });
+    } else if (name === 'code') {
+      // User manually editing code
+      setIsCodeManuallyEdited(true);
+      setFormData((prev) => ({ ...prev, code: value }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+    
+    setErrors((prev) => ({ ...prev, [name]: "" }));
     if (successMessage) setSuccessMessage("");
     if (errorMessage) setErrorMessage("");
   };
@@ -117,6 +187,7 @@ export default function CreateRolePage() {
         setSuccessMessage("Role created successfully!");
         setErrorMessage("");
         setFormData({ name: "", code: "", description: "", privilegeIds: [] });
+        setIsCodeManuallyEdited(false); // Reset the flag
       } else {
         setErrorMessage(result?.message || "Failed to create role");
         setSuccessMessage("");
@@ -177,7 +248,7 @@ export default function CreateRolePage() {
             name="name"
             value={formData.name}
             onChange={handleChange}
-            placeholder="Enter role name"
+            placeholder="Enter role name (e.g., Lab Manager, Trần Thái Thịnh)"
             className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
               errors.name 
                 ? 'border-red-500 bg-red-50 focus:ring-red-500' 
@@ -187,13 +258,16 @@ export default function CreateRolePage() {
           {errors.name && (
             <p className="mt-1 text-sm text-red-600">{errors.name}</p>
           )}
+          <p className="mt-1 text-xs text-gray-500">
+            Role Code will be auto-generated based on Role Name
+          </p>
         </div>
 
         {/* Privilege + Role Code */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           <div>
             <label className="block text-sm font-medium text-black mb-2">
-              Privileges
+              Privileges <span className="text-red-500">*</span>
             </label>
             <Select
               mode="multiple"
@@ -230,8 +304,8 @@ export default function CreateRolePage() {
               name="code"
               value={formData.code}
               onChange={handleChange}
-              placeholder="Enter role code"
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+              placeholder="Auto-generated or enter custom code"
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono ${
                 errors.code 
                   ? 'border-red-500 bg-red-50 focus:ring-red-500' 
                   : 'border-gray-300 hover:border-gray-400 focus:ring-blue-500'
@@ -240,6 +314,11 @@ export default function CreateRolePage() {
             {errors.code && (
               <p className="mt-1 text-sm text-red-600">{errors.code}</p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              {isCodeManuallyEdited 
+                ? '⚠️ Manually edited - auto-generation disabled' 
+                : '✓ Auto-generated from Role Name'}
+            </p>
           </div>
         </div>
 

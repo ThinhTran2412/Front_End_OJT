@@ -54,7 +54,7 @@ export default function Login() {
     const hasViewUser = privileges.includes('VIEW_USER');
 
     // Default user (no VIEW_USER privilege) -> go to own medical records
-    return hasViewUser ? '/dashboard' : '/medical-records';
+    return hasViewUser ? '/home' : '/home';
   };
 
   // Check if already logged in then redirect to dashboard

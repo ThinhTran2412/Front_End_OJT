@@ -111,14 +111,41 @@ export const triggerAiReview = async (testOrderId) => {
     const response = await api.post(`/ai-review/${testOrderId}/trigger`);
     console.log('AI Review trigger response:', response.data);
     
-    // Backend returns: { TestOrderId/testOrderId, Status/status, IsAiReviewEnabled/isAiReviewEnabled, AiReviewedResults/aiReviewedResults }
-    // AiReviewedResults contains: TestResultId/testResultId, Parameter/parameter, ValueNumeric/valueNumeric, ValueText/valueText, Unit/unit, ReferenceRange/referenceRange, ResultStatus/resultStatus, ReviewedByAI/reviewedByAI, AiReviewedDate/aiReviewedDate
+    // Normalize response data to handle both camelCase and PascalCase
+    const data = response.data;
+    
+    // Extract main fields
+    const testOrderIdValue = data.testOrderId || data.TestOrderId;
+    const statusValue = data.status || data.Status;
+    const isAiReviewEnabledValue = data.isAiReviewEnabled !== undefined 
+      ? data.isAiReviewEnabled 
+      : (data.IsAiReviewEnabled !== undefined ? data.IsAiReviewEnabled : false);
+    
+    // Extract AI analysis fields
+    const aiSummaryValue = data.aiSummary || data.AiSummary || null;
+    const predictedStatusValue = data.predictedStatus || data.PredictedStatus || null;
+    
+    // Extract and normalize AI reviewed results
+    const rawResults = data.aiReviewedResults || data.AiReviewedResults || [];
+    const normalizedResults = rawResults.map(result => ({
+      testResultId: result.testResultId || result.TestResultId,
+      parameter: result.parameter || result.Parameter,
+      valueNumeric: result.valueNumeric !== undefined ? result.valueNumeric : result.ValueNumeric,
+      valueText: result.valueText || result.ValueText,
+      unit: result.unit || result.Unit,
+      referenceRange: result.referenceRange || result.ReferenceRange,
+      resultStatus: result.resultStatus || result.ResultStatus,
+      reviewedByAI: result.reviewedByAI !== undefined ? result.reviewedByAI : result.ReviewedByAI,
+      aiReviewedDate: result.aiReviewedDate || result.AiReviewedDate
+    }));
+    
     return {
-      testOrderId: response.data.testOrderId || response.data.TestOrderId,
-      status: response.data.status || response.data.Status,
-      isAiReviewEnabled: response.data.isAiReviewEnabled !== undefined ? response.data.isAiReviewEnabled : 
-                         (response.data.IsAiReviewEnabled !== undefined ? response.data.IsAiReviewEnabled : false),
-      aiReviewedResults: response.data.aiReviewedResults || response.data.AiReviewedResults || []
+      testOrderId: testOrderIdValue,
+      status: statusValue,
+      isAiReviewEnabled: isAiReviewEnabledValue,
+      aiSummary: aiSummaryValue,
+      predictedStatus: predictedStatusValue,
+      aiReviewedResults: normalizedResults
     };
   } catch (error) {
     console.error('Error triggering AI review:', {
@@ -201,4 +228,3 @@ export const confirmAiReviewResults = async (testOrderId, confirmedByUserId) => 
     throw error;
   }
 };
-

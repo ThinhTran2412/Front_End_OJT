@@ -13,7 +13,11 @@ import {
   Divider,
   CircularProgress,
   Avatar,
-  Chip
+  Chip,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { Edit, Save, Cancel } from '@mui/icons-material';
 
@@ -197,12 +201,34 @@ export default function Profile() {
       value={form[name] || ""}
       onChange={handleInput}
       variant="outlined"
+      multiline={name === "address"}
+      rows={name === "address" ? 3 : 1}
       sx={{
         '& .MuiOutlinedInput-root': {
           borderRadius: 2,
         }
       }}
     />
+  );
+
+  const GenderSelect = () => (
+    <FormControl fullWidth size="small">
+      <InputLabel id="gender-select-label">Gender</InputLabel>
+      <Select
+        labelId="gender-select-label"
+        name="gender"
+        value={form.gender || ""}
+        label="Gender"
+        onChange={handleInput}
+        sx={{
+          borderRadius: 2,
+        }}
+      >
+        <MenuItem value="Male">Male</MenuItem>
+        <MenuItem value="Female">Female</MenuItem>
+        <MenuItem value="Other">Other</MenuItem>
+      </Select>
+    </FormControl>
   );
 
   const initials = (profile?.fullName || profile?.email || 'U')
@@ -461,7 +487,7 @@ export default function Profile() {
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {editMode ? (
                               <>
-                                {FieldEdit("Gender", "gender")}
+                                <GenderSelect />
                                 {FieldEdit("Age", "age", "number")}
                                 {FieldEdit("Date of Birth", "dateOfBirth", "date")}
                               </>

@@ -1,5 +1,30 @@
 import api from "./api";
 
+// Get All Test Orders (NEW - for fetching full test order data with createdAt)
+export const getTestOrders = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    
+    // Add pagination params if provided
+    if (params.page) queryParams.append('Page', params.page);
+    if (params.pageSize) queryParams.append('PageSize', params.pageSize);
+    if (params.search) queryParams.append('Search', params.search);
+    if (params.status) queryParams.append('Status', params.status);
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/TestOrder/getList?${queryString}` : '/TestOrder/getList';
+    
+    console.log('Fetching test orders from:', url);
+    const response = await api.get(url);
+    console.log('Test orders response:', response.data);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching test orders:', error);
+    throw error;
+  }
+};
+
 // Create Test Order
 export const createTestOrder = async (data) => {
   try {
@@ -157,82 +182,44 @@ export const exportTestOrdersByPatientId = async (patientId, fileName = null) =>
 };
 
 // Background Export - Start export job (non-blocking)
-export const startExportJob = async (patientId, selectedOrderIds = null, fileName = null) => {
+// Thay thế hàm startExportJob bằng:
+
+// Background Export - Start export job (non-blocking)
+export const startExportJob = async (patientId, testOrderIds = null, fileName) => {
   try {
-    const jobId = `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const jobManager = (await import('../utils/BackgroundJobManager')).default;
-    const exportRequest = {
-      patientId,
-      testOrderIds: selectedOrderIds,
-      fileName
+    const payload = {
+      testOrderIds: testOrderIds, // null = export current month, array = export selected
+      fileName: fileName
     };
     
-    jobManager.registerJob(jobId, {
-      type: 'export',
-      fileName: fileName || `Test Orders-Patient${patientId}.xlsx`,
-      status: 'pending',
-      progress: 0,
-      exportRequest
+    console.log('[TestOrderService] Export payload:', {
+      patientId,
+      testOrderIds: testOrderIds ? `${testOrderIds.length} orders` : 'all from current month',
+      fileName
     });
     
-    setTimeout(async () => {
-      try {
-        const jobManagerRef = (await import('../utils/BackgroundJobManager')).default;
-        
-        jobManagerRef.updateJob(jobId, { status: 'processing', progress: 10 });
-
-        const progressSteps = [25, 50, 75, 90];
-        for (const progress of progressSteps) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          jobManagerRef.updateJob(jobId, { progress });
-        }
-
-        const queryParams = new URLSearchParams();
-        if (fileName) queryParams.append('fileName', fileName);
-        if (selectedOrderIds && selectedOrderIds.length > 0) {
-          selectedOrderIds.forEach(id => queryParams.append('testOrderIds', id));
-        }
-
-        const queryString = queryParams.toString();
-        const url = `/TestOrder/export-patient/${patientId}${queryString ? `?${queryString}` : ''}`;
-
-        const response = await api.get(url, {
-          responseType: 'blob',
-        });
-
-        const blob = new Blob([response.data], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        });
-        const downloadUrl = window.URL.createObjectURL(blob);
-
-        const contentDisposition = response.headers['content-disposition'];
-        let finalFileName = fileName || `Test Orders-Patient${patientId}.xlsx`;
-        if (contentDisposition) {
-          const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-          if (fileNameMatch && fileNameMatch[1]) {
-            finalFileName = fileNameMatch[1].replace(/['"]/g, '');
-          }
-        }
-
-        jobManagerRef.updateJob(jobId, {
-          status: 'completed',
-          progress: 100,
-          downloadUrl,
-          fileName: finalFileName
-        });
-      } catch (error) {
-        const jobManagerRef = (await import('../utils/BackgroundJobManager')).default;
-        jobManagerRef.updateJob(jobId, {
-          status: 'failed',
-          errorMessage: error.message || 'Export failed'
-        });
-      }
-    }, 100);
-
-    return { jobId };
+    // Use POST endpoint with test order IDs in body
+    const response = await api.post(`/TestOrder/export-patient/${patientId}`, payload, {
+      responseType: 'blob' // Important for file download
+    });
+    
+    // Create blob and trigger download
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true, fileName };
   } catch (error) {
-    console.error('Error starting export job:', error);
+    console.error('[TestOrderService] Export failed:', error);
     throw error;
   }
 };

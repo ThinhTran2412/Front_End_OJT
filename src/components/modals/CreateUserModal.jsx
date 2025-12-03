@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Save, User } from 'lucide-react';
 import {
   TextField,
@@ -61,6 +61,10 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }) {
   const [roles, setRoles] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
 
+  // Refs for scrolling
+  const modalBodyRef = useRef(null);
+  const errorAlertRef = useRef(null);
+
   // Fetch roles from API
   useEffect(() => {
     if (!isOpen) return;
@@ -93,6 +97,27 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
     fetchRoles();
   }, [isOpen]);
+
+  // Auto-scroll to top when errors change
+  useEffect(() => {
+    if (Object.keys(errors).length > 0 && modalBodyRef.current) {
+      // Scroll modal body to top with smooth behavior
+      modalBodyRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+
+      // If there's an error alert, focus it for accessibility
+      if (errorAlertRef.current) {
+        setTimeout(() => {
+          errorAlertRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }, 100);
+      }
+    }
+  }, [errors]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -245,19 +270,86 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }) {
       }
     } catch (error) {
       console.error('Error creating user:', error);
+      console.error('Error response:', error.response);
       
       const status = error.response?.status;
       const data = error.response?.data;
       
       let errorMessage = 'Failed to create user. Please try again.';
       
+      // Helper function to extract clean error message
+      const extractCleanMessage = (text) => {
+        if (!text || typeof text !== 'string') return null;
+        
+        // If it's a stack trace (contains " at " and multiple lines), extract first line
+        if (text.includes(' at ') && text.includes('\n')) {
+          // Extract first line which typically contains the actual error message
+          const firstLine = text.split('\n')[0].trim();
+          
+          // Remove exception type prefix (e.g., "System.InvalidOperationException: ")
+          const colonIndex = firstLine.indexOf(':');
+          if (colonIndex > 0 && firstLine.substring(0, colonIndex).includes('Exception')) {
+            return firstLine.substring(colonIndex + 1).trim();
+          }
+          
+          return firstLine;
+        }
+        
+        return text;
+      };
+      
+      // Try to extract error message from different possible response formats
+      if (data) {
+        // Check for detail field (common in ASP.NET Core)
+        if (data.detail) {
+          const cleanMessage = extractCleanMessage(data.detail);
+          if (cleanMessage) errorMessage = cleanMessage;
+        }
+        // Check for message field
+        else if (data.message) {
+          const cleanMessage = extractCleanMessage(data.message);
+          if (cleanMessage) errorMessage = cleanMessage;
+        }
+        // Check for title field (ProblemDetails)
+        else if (data.title) {
+          const cleanMessage = extractCleanMessage(data.title);
+          if (cleanMessage) errorMessage = cleanMessage;
+        }
+        // Check for errors object (validation errors)
+        else if (data.errors && typeof data.errors === 'object') {
+          const errorMessages = Object.values(data.errors).flat();
+          if (errorMessages.length > 0) {
+            errorMessage = errorMessages.join(', ');
+          }
+        }
+        // If data is a string, try to clean it
+        else if (typeof data === 'string') {
+          const cleanMessage = extractCleanMessage(data);
+          if (cleanMessage) errorMessage = cleanMessage;
+        }
+      }
+      
+      // Add status-specific handling with friendly messages
       if (status === 400) {
-        errorMessage = data?.detail || 'Invalid user data';
+        // Keep the extracted message if it exists
+        if (!data?.detail && !data?.message && !data?.title) {
+          errorMessage = 'Invalid user data. Please check all fields.';
+        }
       } else if (status === 409) {
-        errorMessage = data?.detail || 'Email already exists. Please use a different email address.';
+        // For conflict errors, if no message was extracted, use default
+        if (errorMessage === 'Failed to create user. Please try again.') {
+          errorMessage = 'Email already exists in the system.';
+        }
       } else if (status === 401 || status === 403) {
         errorMessage = 'Access denied. Only administrators can create users.';
+      } else if (status === 500) {
+        // For server errors, keep the extracted message if it's meaningful
+        if (errorMessage === 'Failed to create user. Please try again.') {
+          errorMessage = 'Server error occurred. Please try again later.';
+        }
       }
+      
+      console.log('Final error message:', errorMessage);
       
       setErrors(prev => ({
         ...prev,
@@ -332,10 +424,13 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }) {
               </IconButton>
             </div>
 
-            {/* Body */}
-            <div className="p-8 pb-24 bg-gradient-to-br from-gray-50/30 via-white to-blue-50/20 overflow-y-auto max-h-[calc(92vh-180px)]">
+            {/* Body - Added ref for scrolling */}
+            <div 
+              ref={modalBodyRef}
+              className="p-8 pb-24 bg-gradient-to-br from-gray-50/30 via-white to-blue-50/20 overflow-y-auto max-h-[calc(92vh-180px)]"
+            >
               {errors.submit && (
-                <Box sx={{ mb: 3 }}>
+                <Box ref={errorAlertRef} sx={{ mb: 3 }}>
                   <Alert severity="error" variant="filled" sx={{ borderRadius: 2 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
                       Registration Error
@@ -650,4 +745,3 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }) {
     </LocalizationProvider>
   );
 }
-

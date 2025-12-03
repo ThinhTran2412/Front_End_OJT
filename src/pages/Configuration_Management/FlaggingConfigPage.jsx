@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, AlertCircle, CheckCircle, X, Settings2, TrendingUp, TrendingDown, Users, Calendar, Plus } from 'lucide-react';
-import { getAllFlaggingConfigs, addFlaggingConfigs } from '../../services/FlaggingConfigService';
+import { getAllFlaggingConfigs, syncFlaggingConfigs } from '../../services/FlaggingConfigService';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { LoadingOverlay, InlineLoader } from '../../components/Loading';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import AddFlaggingConfigModal from '../../components/modals/AddFlaggingConfigModal';
+import SyncFlaggingConfigModal from '../../components/modals/SyncFlaggingConfigModal';
 
 export default function FlaggingConfigPage() {
   const [flaggingConfigs, setFlaggingConfigs] = useState([]);
@@ -17,8 +17,30 @@ export default function FlaggingConfigPage() {
   const [selectedGender, setSelectedGender] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   
-  // Add modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+// Thay đổi state name
+const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+// Thay đổi handler
+const handleSync = async (configsToSync) => {
+  try {
+    await syncFlaggingConfigs(configsToSync);
+    showToast('Flagging configurations synced successfully!', 'success');
+    await fetchFlaggingConfigs();
+    return true;
+  } catch (err) {
+    console.error('Error syncing flagging configurations:', err);
+    const errorMessage = err.response?.data?.message || 
+                        err.response?.data?.title ||
+                        err.message || 
+                        'Failed to sync flagging configurations';
+    showToast(errorMessage, 'error');
+    throw err;
+  }
+};
+
+const handleOpenSyncModal = () => {
+  setIsSyncModalOpen(true);
+};
   
   const { toasts, showToast, removeToast } = useToast();
 
@@ -186,11 +208,11 @@ export default function FlaggingConfigPage() {
               </div>
               <div className="flex items-center gap-4">
                 <button
-                  onClick={handleOpenAddModal}
+                  onClick={handleOpenSyncModal}
                   className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add
+                  <Settings2 className="w-4 h-4" />
+                  Sync
                 </button>
                 <div className="flex flex-col items-end">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Configurations</p>
@@ -424,12 +446,13 @@ export default function FlaggingConfigPage() {
           </div>
         </div>
       </div>
-
-      {/* Add Modal */}
-      <AddFlaggingConfigModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={handleAdd}
+      
+      {/** Sync Modal */}
+      <SyncFlaggingConfigModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        onSuccess={handleSync}
+        existingConfigs={flaggingConfigs}
       />
     </DashboardLayout>
   );

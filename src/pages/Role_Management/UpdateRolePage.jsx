@@ -5,6 +5,38 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import { usePrivileges } from "../../hooks/usePrivileges";
 import { Select } from "antd";
 import { InlineLoader } from '../../components/Loading';
+import PrivilegeTag from '../../components/Role_Management/PrivilegeTag';
+
+// Format "READ_ONLY" → "Read Only"
+function formatPrivilegeName(name) {
+  if (!name) return '';
+  return name
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Privilege dependency map - child privileges require parent privileges
+const PRIVILEGE_DEPENDENCY_MAP = {
+  // Patient Test Order Privileges (1-8) - Depend on READ_ONLY (1)
+  3: 1,   // MODIFY_TEST_ORDER -> READ_ONLY
+  5: 1,   // REVIEW_TEST_ORDER -> READ_ONLY
+  7: 1,   // MODIFY_COMMENT -> READ_ONLY
+  
+  // Configuration Privileges (9-12) - Depend on VIEW_CONFIGURATION (9)
+  11: 9,  // MODIFY_CONFIGURATION -> VIEW_CONFIGURATION
+  
+  // User Management Privileges (13-17) - Depend on VIEW_USER (13)
+  15: 13, // MODIFY_USER -> VIEW_USER
+  17: 13, // LOCK_UNLOCK_USER -> VIEW_USER
+  
+  // Role Management Privileges (18-21) - Depend on VIEW_ROLE (18)
+  20: 18, // UPDATE_ROLE -> VIEW_ROLE
+  
+  // Lab Management Privileges (22-29)
+  24: 22, // MODIFY_REAGENTS -> VIEW_EVENT_LOGS
+  28: 27  // ACTIVATE_DEACTIVATE_INSTRUMENT -> VIEW_INSTRUMENT
+};
 
 export default function UpdateRolePage() {
   const { id } = useParams();
@@ -38,13 +70,9 @@ export default function UpdateRolePage() {
         
         console.log("Fetching role with ID:", id);
         
-        const [roleRes, privilegesRes] = await Promise.all([
-          RoleService.getById(id),
-          RoleService.getAllPrivileges(),
-        ]);
+        const roleRes = await RoleService.getById(id);
 
         console.log("Role response:", roleRes);
-        console.log("Privileges response:", privilegesRes);
 
         // Check API response
         if (!roleRes.success) {
@@ -66,35 +94,21 @@ export default function UpdateRolePage() {
         }
 
         console.log("Extracted role data:", role);
+        console.log("Role privileges raw:", role.privileges);
+        console.log("Role privilegeIds raw:", role.privilegeIds);
         
-        // Extract privilege IDs from role data
-        // API might return privileges as array of objects or array of IDs
-        let privilegeIds = [];
-        if (role.privileges && Array.isArray(role.privileges)) {
-          privilegeIds = role.privileges.map(p => {
-            if (typeof p === 'object' && p !== null) {
-              return p.privilegeId || p.id || p.privilegeId;
-            }
-            return typeof p === 'number' || typeof p === 'string' ? p : null;
-          }).filter(Boolean).map(id => typeof id === 'string' ? parseInt(id, 10) : id);
-        } else if (role.privilegeIds && Array.isArray(role.privilegeIds)) {
-          privilegeIds = role.privilegeIds.map(id => 
-            typeof id === 'string' ? parseInt(id, 10) : id
-          ).filter(Boolean);
-        }
-
-        console.log("Extracted privilege IDs:", privilegeIds);
-
+        // Note: We'll map privilege names to IDs after privileges are loaded
+        // Store the raw privilege names temporarily
         setFormData({
           name: role.name || "",
           code: role.code || "",
           description: role.description || "",
-          privilegeIds: privilegeIds,
+          privilegeIds: [], // Will be set in a separate effect after privileges load
+          _privilegeNames: role.privileges || [] // Temporary storage
         });
 
-        if (!privilegesRes.success) {
-          console.warn("Failed to load privileges:", privilegesRes.message);
-        }
+
+
       } catch (error) {
         console.error("Error fetching role:", error);
         console.error("Error details:", {
@@ -114,12 +128,62 @@ export default function UpdateRolePage() {
     fetchRoleData();
   }, [id]);
 
+  // Map privilege names to IDs after privileges are loaded
+  useEffect(() => {
+    if (formData._privilegeNames && privileges.length > 0) {
+      console.log("🔄 Mapping privilege names to IDs");
+      console.log("Privilege names from role:", formData._privilegeNames);
+      console.log("Available privileges:", privileges);
+      
+      const privilegeIds = formData._privilegeNames
+        .map(name => {
+          const privilege = privileges.find(p => p.name === name);
+          if (privilege) {
+            console.log(`✅ Mapped '${name}' -> ID ${privilege.privilegeId}`);
+            return privilege.privilegeId;
+          } else {
+            console.warn(`❌ Could not find privilege with name: ${name}`);
+            return null;
+          }
+        })
+        .filter(id => id != null && !isNaN(id));
+      
+      console.log("✅ Final mapped privilege IDs:", privilegeIds);
+      
+      setFormData(prev => ({
+        ...prev,
+        privilegeIds: privilegeIds,
+        _privilegeNames: undefined // Clean up temporary field
+      }));
+    }
+  }, [privileges, formData._privilegeNames]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
     if (successMessage) setSuccessMessage("");
     if (errorMessage) setErrorMessage("");
+  };
+
+  // Handle privilege selection with dependency checking
+  const handlePrivilegeChange = (selectedIds) => {
+    const validIds = selectedIds.filter(id => !isNaN(id) && id != null);
+    
+    // Auto-add required dependencies
+    const idsWithDependencies = new Set(validIds);
+    
+    validIds.forEach(id => {
+      const requiredParent = PRIVILEGE_DEPENDENCY_MAP[id];
+      if (requiredParent && !idsWithDependencies.has(requiredParent)) {
+        idsWithDependencies.add(requiredParent);
+      }
+    });
+    
+    const finalIds = Array.from(idsWithDependencies).sort((a, b) => a - b);
+    
+    setFormData(prev => ({ ...prev, privilegeIds: finalIds }));
+    setErrors(prev => ({ ...prev, privilegeIds: '' }));
   };
 
   const validateForm = () => {
@@ -150,9 +214,7 @@ export default function UpdateRolePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    if (!validateForm()) {
       return;
     }
 
@@ -262,25 +324,93 @@ export default function UpdateRolePage() {
                   <label className="block text-sm font-medium text-black mb-2">
                     Privileges <span className="text-red-500">*</span>
                   </label>
+                  
+                  <style jsx>{`
+                    .privilege-select-update .ant-select-selector {
+                      min-height: 48px !important;
+                      padding: 8px 12px !important;
+                      display: flex !important;
+                      align-items: flex-start !important;
+                      flex-wrap: wrap !important;
+                    }
+                    .privilege-select-update .ant-select-selection-item {
+                      margin: 2px 4px 2px 0 !important;
+                    }
+                    .privilege-select-update .ant-select-selection-placeholder {
+                      line-height: 32px !important;
+                    }
+                    .privilege-select-update .ant-select-selection-search {
+                      margin: 2px 0 !important;
+                    }
+                  `}</style>
+
                   <Select
                     mode="multiple"
                     placeholder="Select privileges..."
-                    value={formData.privilegeIds}
-                    onChange={(vals) => {
-                      setFormData(prev => ({ ...prev, privilegeIds: vals }));
-                      setErrors(prev => ({ ...prev, privilegeIds: '' }));
-                    }}
-                    options={(Array.isArray(privileges) ? privileges : []).map(p => ({
-                      label: p.name,
-                      value: p.privilegeId,
-                    }))}
+                    value={formData.privilegeIds.filter(id => !isNaN(id) && id != null)}
+                    onChange={handlePrivilegeChange}
+                    options={privileges
+                      .filter(p => p.privilegeId != null && !isNaN(p.privilegeId))
+                      .map(p => ({
+                        label: p.name,
+                        value: p.privilegeId,
+                        description: p.description
+                      }))}
                     showSearch
                     size="large"
-                    className={`w-full ${
-                      errors.privilegeIds ? 'border-red-500' : ''
-                    }`}
+                    maxTagCount={4}
+                    className={`privilege-select-update w-full ${errors.privilegeIds ? 'border-red-500' : ''}`}
                     loading={privilegesLoading}
+                    disabled={privilegesLoading || privileges.length === 0}
+                    filterOption={(input, option) => {
+                      const privilegeName = option.label?.toLowerCase() || '';
+                      const privilegeDesc = option.description?.toLowerCase() || '';
+                      const searchTerm = input.toLowerCase();
+                      return privilegeName.includes(searchTerm) || privilegeDesc.includes(searchTerm);
+                    }}
+                    tagRender={(props) => {
+                      const { label, value, closable, onClose } = props;
+                      const privilege = privileges.find(p => p.privilegeId === value);
+                      const formattedPrivilege = {
+                        raw: privilege?.name || label,
+                        name: formatPrivilegeName(privilege?.name || label)
+                      };
+                      return (
+                        <PrivilegeTag 
+                          privilege={formattedPrivilege} 
+                          size="small" 
+                          closable={closable}
+                          onClose={onClose}
+                          className="mr-1 mb-1"
+                        />
+                      );
+                    }}
+                    optionRender={(option) => {
+                      const privilege = privileges.find(p => p.privilegeId === option.value);
+                      const formattedPrivilege = {
+                        raw: privilege?.name || option.label,
+                        name: formatPrivilegeName(privilege?.name || option.label)
+                      };
+                      return (
+                        <div className="flex items-center space-x-2">
+                          <PrivilegeTag privilege={formattedPrivilege} size="small" />
+                          <div className="text-xs text-gray-500 truncate">{option.description}</div>
+                        </div>
+                      );
+                    }}
                   />
+
+                  {/* Show errors or loading states */}
+                  {privilegesError && (
+                    <p className="mt-1 text-sm text-red-600">
+                      Error loading privileges: {privilegesError}
+                    </p>
+                  )}
+                  {!privilegesLoading && privileges.length === 0 && !privilegesError && (
+                    <p className="mt-1 text-sm text-amber-600">
+                      No privileges available
+                    </p>
+                  )}
                   {errors.privilegeIds && (
                     <p className="mt-1 text-sm text-red-600">{errors.privilegeIds}</p>
                   )}

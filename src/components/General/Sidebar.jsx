@@ -104,15 +104,31 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
   const confirmLogout = async () => {
     try {
       setIsLoggingOut(true);
-      const token = refreshToken || localStorage.getItem('refreshToken');
-      if (token) await api.post('/Auth/logout', { refreshToken: token });
+      
+      // Lấy refreshToken từ localStorage (nguồn chính thống)
+      const token = localStorage.getItem('refreshToken');
+      
+      if (token) {
+        // Gọi API logout với refreshToken
+        await api.post('/Auth/logout', { refreshToken: token });
+      }
     } catch (e) {
-      console.warn('Logout API failed, continuing local logout...');
+      console.warn('Logout API failed, continuing local logout...', e);
     } finally {
+      // Dù API có lỗi hay không, vẫn clear local state
       setIsLoggingOut(false);
       setShowLogoutModal(false);
       setUserPanelOpen(false);
+      
+      // Clear localStorage trước
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      
+      // Clear Zustand store
       logout();
+      
+      // Navigate về login
       navigate('/login');
     }
   };
@@ -167,7 +183,10 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
       >
         {/* Header with Laboratory name and logo */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 min-h-[64px]">
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
             <img 
               src={logoImg} 
               alt="Laboratory" 
@@ -176,7 +195,7 @@ export function AppSidebar({ sidebarOpen, setSidebarOpen }) {
             <span className="text-lg font-bold text-gray-900">
               Laboratory
             </span>
-          </div>
+          </button>
           <button
             onClick={() => setSidebarOpen(false)}
             className="p-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"

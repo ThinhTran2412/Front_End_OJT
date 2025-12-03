@@ -127,12 +127,28 @@ export default function TestOrderPage() {
     }
   };
 
-  const handleCreateNew = () => {
-    setShowPatientSearch(true);
-    setPatientSearchTerm('');
+  // Hoặc sửa hàm handleCreateNew để load ngay:
+const handleCreateNew = async () => {
+  setShowPatientSearch(true);
+  setPatientSearchTerm('');
+  setSelectedPatient(null);
+  
+  // Load tất cả patients ngay khi mở popup
+  setIsSearchingPatients(true);
+  try {
+    const results = await getAllPatients({
+      pageNumber: 1,
+      pageSize: 50,
+      searchTerm: '' // Load all
+    });
+    setSearchedPatients(results.patients || []);
+  } catch (error) {
+    console.error('Error loading patients:', error);
     setSearchedPatients([]);
-    setSelectedPatient(null);
-  };
+  } finally {
+    setIsSearchingPatients(false);
+  }
+};
 
   const handlePatientSearch = async () => {
     if (!patientSearchTerm.trim()) {

@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
 
 // Pages
 import Home from "../pages/General/Home";
+import About from "../pages/General/About";
 import Login from "../pages/General/Login";
 import Register from "../pages/General/Register";
 import CreateUser from "../pages/General/CreateUser";
@@ -31,6 +32,7 @@ import ProtectedRoute from "../components/General/ProtectedRoute";
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/home" replace /> },
   { path: "/home", element: <Home /> },
+  { path: "/about", element: <About /> },
   { path: "/login", element: <Login /> },
   { path: "/register", element: <Register /> },
   { path: "/create-user", element: <CreateUser /> },

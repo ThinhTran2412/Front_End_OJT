@@ -8,7 +8,6 @@ export const usePrivileges = () => {
   const { isAuthenticated } = useAuthStore();
 
   const fetchPrivileges = async () => {
-    // Check authentication before fetching
     if (!isAuthenticated) {
       console.warn('User not authenticated, skipping privileges fetch');
       return;
@@ -20,21 +19,19 @@ export const usePrivileges = () => {
       
       const response = await api.get('/Privileges');
       
+      console.log('✅ Privileges response:', response.data);
       
-      if (response.status === 200) {
+      if (response.status === 200 && Array.isArray(response.data)) {
         setPrivileges(response.data);
+        console.log('✅ Set privileges count:', response.data.length);
+      } else {
+        console.error('❌ Invalid response format');
+        setError('Invalid privileges data format');
+        setPrivileges([]);
       }
     } catch (error) {
-      console.error('Error fetching privileges:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status,
-        statusText: error.response?.statusText
-      });
+      console.error('❌ Error fetching privileges:', error);
       
-      // Handle different types of errors
       if (error.response?.status === 401) {
         setError('Session expired. Please login again.');
       } else if (error.response?.status === 403) {
@@ -44,13 +41,14 @@ export const usePrivileges = () => {
       } else {
         setError(error.message || 'Failed to load privileges list');
       }
+      
+      setPrivileges([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Only fetch if authenticated, no data yet and not loading
     if (isAuthenticated && privileges.length === 0 && !loading) {
       fetchPrivileges();
     }

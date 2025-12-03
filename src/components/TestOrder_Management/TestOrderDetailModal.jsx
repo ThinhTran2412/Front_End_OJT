@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React, { useRef } from "react";
 import { X, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { getTestOrderById } from '../../services/TestOrderService';
@@ -36,36 +37,79 @@ export default function TestOrderDetailModal({
   const [showAnimation, setShowAnimation] = useState(false);
   const [countdown, setCountdown] = useState(10);
   const { showToast } = useToast();
+  const fetchingRef = useRef(false);
+  const processingSimulatorRef = useRef(false);
 
-  useEffect(() => {
-    if (isOpen && testOrderId) {
-      console.log('Modal opened with testOrderId:', testOrderId);
+  const deduplicateResults = (results) => {
+    if (!results || !Array.isArray(results)) return [];
+    
+    const seen = new Set();
+    return results.filter(result => {
+      const id = result.testResultId || result.TestResultId;
+      if (!id) return true; // Keep results without ID
       
-      // Reset states
-      setShowAnimation(true);
-      setLoading(true);
-      setCountdown(10);
-      
-      // Countdown timer
-      const countdownInterval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            setShowAnimation(false);
-            fetchTestOrderDetail();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      
-      return () => {
-        clearInterval(countdownInterval);
-      };
-    } else if (isOpen && !testOrderId) {
-      console.warn('Modal opened but testOrderId is missing');
+      if (seen.has(id)) {
+        console.warn('Duplicate testResultId detected and removed:', id);
+        return false;
+      }
+      seen.add(id);
+      return true;
+    });
+  };
+
+  // Thay state bằng localStorage
+useEffect(() => {
+  if (isOpen && testOrderId) {
+    console.log('Modal opened with testOrderId:', testOrderId);
+    
+    // Check if this order has been viewed before (from localStorage)
+    const viewedOrdersStr = localStorage.getItem('viewedOrders') || '[]';
+    const viewedOrders = JSON.parse(viewedOrdersStr);
+    const hasViewedBefore = viewedOrders.includes(testOrderId);
+    
+    // Reset ALL states
+    setShowAnimation(!hasViewedBefore);
+    setLoading(true);
+    setLoadingTestResults(!hasViewedBefore);
+    setCountdown(20);
+    setTestResults([]);
+    setTestOrder(null);
+    setAiReviewedResults([]);
+    fetchingRef.current = false;
+    processingSimulatorRef.current = false;
+    
+    // Nếu đã xem rồi, fetch data luôn
+    if (hasViewedBefore) {
+      fetchTestOrderDetail();
+      return;
     }
-  }, [isOpen, testOrderId]);
+    
+    // Nếu chưa xem, chạy countdown và animation
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setShowAnimation(false);
+          setLoadingTestResults(false);
+          
+          // Mark order as viewed in localStorage
+          const updatedViewed = [...viewedOrders, testOrderId];
+          localStorage.setItem('viewedOrders', JSON.stringify(updatedViewed));
+          
+          fetchTestOrderDetail();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => {
+      clearInterval(countdownInterval);
+    };
+  } else if (isOpen && !testOrderId) {
+    console.warn('Modal opened but testOrderId is missing');
+  }
+}, [isOpen, testOrderId]);
 
   const fetchTestOrderDetail = async () => {
     if (!testOrderId) {
@@ -73,7 +117,14 @@ export default function TestOrderDetailModal({
       return;
     }
 
+    // ← THÊM GUARD CHECK NÀY
+    if (fetchingRef.current) {
+      console.warn('Already fetching test order detail, skipping...');
+      return;
+    }
+
     try {
+      fetchingRef.current = true; // ← SET FLAG
       setLoading(true);
       
       console.log('Fetching test order detail for:', testOrderId);
@@ -106,8 +157,6 @@ export default function TestOrderDetailModal({
       actualTestOrderId = orderData.testOrderId || orderData.TestOrderId || testOrderId;
       
       // Map the response to match the expected order structure
-      // TestOrderDetailDto fields: TestOrderId, PatientId, PatientName, Age, Gender, PhoneNumber, 
-      // IdentifyNumber, Status, CreatedAt, RunDate, TestType, TestResults, Message
       const order = {
         testOrderId: actualTestOrderId,
         status: orderData.status || orderData.Status || 'Unknown',
@@ -130,14 +179,15 @@ export default function TestOrderDetailModal({
       const loadTestResults = async () => {
         try {
           setLoadingTestResults(true);
-          let hasResults = false;
+          let resultsToSet = [];
           
-          if (orderData.testResults && Array.isArray(orderData.testResults)) {
-            setTestResults(orderData.testResults);
-            hasResults = true;
-          } else if (orderData.TestResults && Array.isArray(orderData.TestResults)) {
-            // Map both PascalCase and camelCase to camelCase
-            const mappedResults = orderData.TestResults.map(r => ({
+          // Priority 1: Check if test results are already in order data
+          if (orderData.testResults && Array.isArray(orderData.testResults) && orderData.testResults.length > 0) {
+            resultsToSet = orderData.testResults;
+            console.log('Using testResults from orderData (camelCase):', resultsToSet.length);
+          } else if (orderData.TestResults && Array.isArray(orderData.TestResults) && orderData.TestResults.length > 0) {
+            // Map PascalCase to camelCase
+            resultsToSet = orderData.TestResults.map(r => ({
               testResultId: r.testResultId || r.TestResultId,
               testCode: r.testCode || r.TestCode || '',
               parameter: r.parameter || r.Parameter || '',
@@ -160,36 +210,50 @@ export default function TestOrderDetailModal({
               confirmedByUserId: r.confirmedByUserId !== undefined ? r.confirmedByUserId : r.ConfirmedByUserId,
               confirmedDate: r.confirmedDate || r.ConfirmedDate
             }));
-            setTestResults(mappedResults);
-            hasResults = true;
+            console.log('Using TestResults from orderData (PascalCase):', resultsToSet.length);
           }
           
-          // If no results in order data, try dedicated endpoint
-          if (!hasResults) {
+          // Priority 2: If no results in order data, fetch from dedicated endpoint
+          if (resultsToSet.length === 0) {
+            console.log('No test results in orderData, fetching from endpoint...');
             let results = await getTestResultsByTestOrderId(actualTestOrderId);
             
-            // If no test results found, try to process from simulator
+            // Priority 3: If still no results, try to process from simulator (ONLY ONCE!)
             if (!results || results.length === 0) {
+              // ← GUARD CHECK
+              if (processingSimulatorRef.current) {
+                console.warn('Already processing from simulator, skipping...');
+                setTestResults([]);
+                return;
+              }
+              
               console.log('No test results found, attempting to process from simulator...');
               try {
-                // Always use CBC for demo purposes as other test types don't have data yet
+                processingSimulatorRef.current = true; // ← SET FLAG
+                
                 await processFromSimulator(actualTestOrderId, 'CBC');
-                console.log('Successfully processed from simulator with CBC test type, fetching test results again...');
+                console.log('Successfully processed from simulator, fetching again...');
                 
-                // Wait a bit for processing to complete, then fetch again
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Fetch test results again after processing
                 results = await getTestResultsByTestOrderId(actualTestOrderId);
-                console.log('Test results after processing:', results);
+                console.log('Test results after processing:', results?.length || 0);
               } catch (processError) {
                 console.warn('Could not process from simulator:', processError);
-                // Continue with empty results - don't throw error
+              } finally {
+                processingSimulatorRef.current = false; // ← RESET FLAG
               }
             }
             
-            setTestResults(results || []);
+            resultsToSet = results || [];
           }
+          
+          // Deduplicate before setting
+          const uniqueResults = deduplicateResults(resultsToSet);
+          console.log(`Deduplicated: ${resultsToSet.length} → ${uniqueResults.length} results`);
+          
+          setTestResults(uniqueResults);
+          console.log('Final test results set:', uniqueResults.length);
+          
         } catch (err) {
           console.warn('Could not fetch test results:', err);
           setTestResults([]);
@@ -202,7 +266,6 @@ export default function TestOrderDetailModal({
       loadTestResults();
 
       // Fetch AI review status - handle errors gracefully
-      // getAiReviewStatus already handles all errors internally and returns default value
       const aiStatus = await getAiReviewStatus(actualTestOrderId);
       setIsAiReviewEnabled(aiStatus?.aiReviewEnabled ?? false);
     } catch (error) {
@@ -226,6 +289,7 @@ export default function TestOrderDetailModal({
       setLoadingTestResults(false);
     } finally {
       setLoading(false);
+      fetchingRef.current = false; // ← RESET FLAG
     }
   };
 
@@ -299,6 +363,23 @@ export default function TestOrderDetailModal({
       const result = await triggerAiReview(orderIdToUse);
       
       console.log('AI Review trigger response:', result);
+
+      // ===== BẮT ĐẦU THÊM CODE MỚI =====
+      // Auto-create comment with AI summary if available
+      if (result.aiSummary) {
+        try {
+          const { addComment } = await import('../../services/CommentService');
+          await addComment({
+            testOrderId: orderIdToUse,
+            testResultId: [], // General comment for entire order
+            message: `AI Analysis Summary:\n\n${result.aiSummary}`
+          });
+          console.log('Auto-created comment with AI summary');
+        } catch (commentError) {
+          console.warn('Could not auto-create comment with AI summary:', commentError);
+          // Don't fail the entire operation if comment creation fails
+        }
+      }
       
       // Update test order status
       if (testOrder) {
@@ -632,7 +713,7 @@ export default function TestOrderDetailModal({
   // Fullscreen animation view
   if (showAnimation) {
     return (
-      <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 overflow-hidden">
+      <div className="fixed inset-0 z-50 bg-white overflow-hidden">
         <style>{`
           @keyframes fullScreenFadeIn {
             from {
@@ -644,72 +725,7 @@ export default function TestOrderDetailModal({
               transform: scale(1);
             }
           }
-          @keyframes particleFloat {
-            0%, 100% {
-              transform: translateY(0px) rotate(0deg);
-              opacity: 0.3;
-            }
-            50% {
-              transform: translateY(-20px) rotate(180deg);
-              opacity: 0.7;
-            }
-          }
-          @keyframes sideGlow {
-            0%, 100% {
-              opacity: 0.2;
-              transform: scaleY(1);
-            }
-            50% {
-              opacity: 0.5;
-              transform: scaleY(1.1);
-            }
-          }
         `}</style>
-        
-        {/* Background particles and effects */}
-        <div className="absolute inset-0">
-          {/* Left side glow effect */}
-          <div className="absolute left-0 top-0 w-32 h-full bg-gradient-to-r from-blue-400/20 to-transparent" style={{
-            animation: 'sideGlow 4s ease-in-out infinite'
-          }}></div>
-          
-          {/* Right side glow effect */}
-          <div className="absolute right-0 top-0 w-32 h-full bg-gradient-to-l from-purple-400/20 to-transparent" style={{
-            animation: 'sideGlow 4s ease-in-out infinite 2s'
-          }}></div>
-          
-          {/* Floating particles */}
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-20"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animation: `particleFloat ${3 + Math.random() * 4}s ease-in-out infinite ${Math.random() * 2}s`
-              }}
-            ></div>
-          ))}
-          
-          {/* DNA helix pattern on sides */}
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 w-8 h-96 opacity-10">
-            <svg viewBox="0 0 32 384" className="w-full h-full">
-              <path d="M4,0 Q16,48 28,96 Q16,144 4,192 Q16,240 28,288 Q16,336 4,384" 
-                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
-              <path d="M28,0 Q16,48 4,96 Q16,144 28,192 Q16,240 4,288 Q16,336 28,384" 
-                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
-            </svg>
-          </div>
-          
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-8 h-96 opacity-10">
-            <svg viewBox="0 0 32 384" className="w-full h-full">
-              <path d="M4,0 Q16,48 28,96 Q16,144 4,192 Q16,240 28,288 Q16,336 4,384" 
-                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
-              <path d="M28,0 Q16,48 4,96 Q16,144 28,192 Q16,240 4,288 Q16,336 28,384" 
-                    stroke="white" strokeWidth="2" fill="none" opacity="0.3"/>
-            </svg>
-          </div>
-        </div>
         
         {/* Close button */}
         <button
@@ -724,18 +740,6 @@ export default function TestOrderDetailModal({
           <div className="relative z-10 w-full h-full flex flex-col items-center justify-center bg-white overflow-hidden" style={{
             animation: 'fullScreenFadeIn 0.5s ease-out'
           }}>
-            {/* Background effects */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 opacity-60"></div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_70%)]"></div>
-            
-            {/* Animated background pattern */}
-            <div className="absolute inset-0 opacity-20">
-              <div className="absolute inset-0" style={{
-                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.1) 2px, rgba(59,130,246,0.1) 4px)',
-                backgroundSize: '100% 100%',
-                animation: 'slideDown 20s linear infinite'
-              }}></div>
-            </div>
 
             {/* Animation */}
             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center overflow-hidden">
@@ -757,18 +761,9 @@ export default function TestOrderDetailModal({
                 </p>
               </div>
             </div>
-
-            <style>{`
-              @keyframes slideDown {
-                0% { transform: translateY(-100%); }
-                100% { transform: translateY(100%); }
-              }
-            `}</style>
           </div>
         )}
         
-        {/* Subtle overlay for better contrast */}
-        <div className="absolute inset-0 bg-black bg-opacity-10 pointer-events-none"></div>
       </div>
     );
   }

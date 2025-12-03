@@ -4,6 +4,17 @@ import { Link } from 'react-router-dom';
 import PrivilegeCell from './PrivilegeCell';
 import { InlineLoader } from '../Loading';
 
+// Format "LAB_MANAGER" → "Lab Manager" hoặc "ADMIN" → "Admin"
+function formatRoleName(name) {
+  if (!name) return '';
+  return name
+    .replace(/_/g, ' ')  // LAB_MANAGER → LAB MANAGER
+    .toLowerCase()       // lab manager
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))  // Lab Manager
+    .join(' ');
+}
+
 export default function RoleTable({
   roles,
   loading,
@@ -31,18 +42,33 @@ export default function RoleTable({
       title: 'Role Name',
       dataIndex: 'name', 
       key: 'name',
+      width: 180,
       sorter: true,
       sortDirections: ['ascend', 'descend', 'ascend'],
       sortOrder: sortBy === 'name' ? (sortDesc ? 'descend' : 'ascend') : null,
+      render: (text) => {
+        // Format name: LAB_MANAGER → Lab Manager
+        const displayName = formatRoleName(text);
+        return <span className="font-medium text-gray-900">{displayName}</span>;
+      }
     },
     {
       title: 'Role Code',
-      dataIndex: 'code', 
+      dataIndex: 'code',  // Sử dụng field 'code' từ backend
       key: 'code',
-      width: 120,
+      width: 240,
       sorter: true,
       sortDirections: ['ascend', 'descend', 'ascend'],
       sortOrder: sortBy === 'code' ? (sortDesc ? 'descend' : 'ascend') : null,
+      render: (text, record) => {
+        // Hiển thị code nếu có, nếu không thì hiển thị name (cho các role cũ)
+        const displayCode = text || record.name || 'N/A';
+        return (
+          <span className="font-mono text-sm px-2.5 py-1 bg-purple-50 text-purple-700 rounded border border-purple-200">
+            {displayCode}
+          </span>
+        );
+      }
     },
     {
       title: 'Description',
@@ -51,6 +77,9 @@ export default function RoleTable({
       sorter: true,
       sortDirections: ['ascend', 'descend', 'ascend'],
       sortOrder: sortBy === 'description' ? (sortDesc ? 'descend' : 'ascend') : null,
+      render: (text) => (
+        <span className="text-gray-600">{text || '-'}</span>
+      )
     },
     {
       title: 'Privilege',
@@ -74,12 +103,12 @@ export default function RoleTable({
 
         // Check if this is the Admin role - hide Edit and Delete buttons
         const isAdminRole = record.name?.toLowerCase() === 'admin' || 
-                           record.code?.toLowerCase() === 'admin' ||
-                           record.name?.toLowerCase() === 'administrator';
+                           record.name?.toUpperCase() === 'ADMIN';
 
         if (isAdminRole) {
           return (
             <div className="flex items-center justify-center">
+              <span className="text-xs text-gray-400 italic">Protected Role</span>
             </div>
           );
         }

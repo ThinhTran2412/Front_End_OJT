@@ -109,43 +109,50 @@ export default function AddPatientModal({ isOpen, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      return;
-    }
+  if (!validateForm()) {
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const result = await onSuccess({
-        identifyNumber: formData.identifyNumber.trim(),
-        fullName: formData.fullName.trim(),
-        dateOfBirth: formData.dateOfBirth ? dayjs(formData.dateOfBirth).format('YYYY-MM-DD') : '',
-        gender: formData.gender.trim(),
-        phoneNumber: formData.phoneNumber.trim() || '',
-        email: formData.email.trim() || '',
-        address: formData.address.trim() || ''
-      });
-      
-      if (result) {
-        handleReset();
-        onClose();
-      }
-    } catch (err) {
-      console.error('Error adding patient:', err);
-      
-      const errorMessage = err.response?.data?.message || 
-                          err.response?.data?.title ||
-                          err.message || 
-                          'Failed to add patient. Please try again.';
-      
-      setErrors(prev => ({
-        ...prev,
-        submit: errorMessage
-      }));
-    } finally {
-      setLoading(false);
+  try {
+    const result = await onSuccess({
+      identifyNumber: formData.identifyNumber.trim(),
+      fullName: formData.fullName.trim(),
+      dateOfBirth: formData.dateOfBirth ? dayjs(formData.dateOfBirth).format('YYYY-MM-DD') : '',
+      gender: formData.gender.trim(),
+      phoneNumber: formData.phoneNumber.trim() || '',
+      email: formData.email.trim() || '',
+      address: formData.address.trim() || ''
+    });
+    
+    if (result) {
+      handleReset();
+      onClose();
     }
-  };
+  } catch (err) {
+    console.error('Error adding patient:', err);
+    
+    // PHẦN SỬA ĐỔI BẮT ĐẦU TỪ ĐÂY
+    let errorMessage = err.response?.data?.message || 
+                       err.response?.data?.title ||
+                       err.message || 
+                       'Failed to add patient. Please try again.';
+    
+    // Check if error is about IAM Service (which means email already exists)
+    if (errorMessage.includes('Could not create User in IAM Service')) {
+      errorMessage = 'This email address is already registered in the system. Please use a different email address.';
+    }
+    // PHẦN SỬA ĐỔI KẾT THÚC
+    
+    setErrors(prev => ({
+      ...prev,
+      submit: errorMessage
+    }));
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleReset = () => {
     setFormData({

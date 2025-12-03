@@ -445,157 +445,205 @@ export default function TestOrderModal({
                 </div>
                 <div className="p-6">
                   <Box sx={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
-                    gap: 3 
-                  }}>
-                    <TextField
-                      name="identifyNumber"
-                      label="Identify Number"
-                      value={formData.identifyNumber}
-                      onChange={handleChange}
-                      required
-                      fullWidth
-                      variant="outlined"
-                      placeholder="e.g., 079203004567"
-                      disabled={isPatientFieldReadOnly()}
-                      error={!!errors.identifyNumber}
-                      helperText={errors.identifyNumber}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          '&:hover fieldset': {
-                            borderColor: isPatientFieldReadOnly() ? 'rgba(0, 0, 0, 0.23)' : 'primary.main',
-                          },
-                        },
-                      }}
-                    />
+  display: 'grid', 
+  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+  gap: 3 
+}}>
+  <TextField
+    name="identifyNumber"
+    label="Identify Number"
+    value={formData.identifyNumber}
+    onChange={handleChange}
+    required
+    fullWidth
+    variant="outlined"
+    placeholder="e.g., 079203004567"
+    disabled={isPatientFieldReadOnly()}
+    error={!!errors.identifyNumber}
+    helperText={errors.identifyNumber}
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        borderRadius: 2,
+        '&:hover fieldset': {
+          borderColor: isPatientFieldReadOnly() ? 'rgba(0, 0, 0, 0.23)' : 'primary.main',
+        },
+        '&.Mui-disabled fieldset': {
+          borderColor: 'rgba(0, 0, 0, 0.3)',
+        },
+      },
+      '& .MuiInputBase-input.Mui-disabled': {
+        WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+      },
+    }}
+  />
 
-                    <TextField
-                      name="patientName"
-                      label="Patient Name"
-                      value={formData.patientName}
-                      onChange={handleChange}
-                      required
-                      fullWidth
-                      variant="outlined"
-                      placeholder="Enter patient name"
-                      disabled={isPatientFieldReadOnly()}
-                      error={!!errors.patientName}
-                      helperText={errors.patientName}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                        },
-                      }}
-                    />
+  <TextField
+    name="patientName"
+    label="Patient Name"
+    value={formData.patientName}
+    onChange={handleChange}
+    required
+    fullWidth
+    variant="outlined"
+    placeholder="Enter patient name"
+    disabled={isPatientFieldReadOnly()}
+    error={!!errors.patientName}
+    helperText={errors.patientName}
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        borderRadius: 2,
+        '&.Mui-disabled fieldset': {
+          borderColor: 'rgba(0, 0, 0, 0.3)',
+        },
+      },
+      '& .MuiInputBase-input.Mui-disabled': {
+        WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+      },
+    }}
+  />
 
-                    <DatePicker
-                      label="Date of Birth *"
-                      value={formData.dateOfBirth}
-                      onChange={handleDateChange}
-                      disabled={isPatientFieldReadOnly()}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          variant: 'outlined',
-                          error: !!errors.dateOfBirth,
-                          helperText: errors.dateOfBirth,
-                          sx: {
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 2,
-                            },
-                          },
-                        },
-                      }}
-                      format="MM/DD/YYYY"
-                    />
+ <DatePicker
+  label="Date of Birth *"
+  value={formData.dateOfBirth}
+  onChange={handleDateChange}
+  disabled={isPatientFieldReadOnly()}
+  slotProps={{
+    textField: {
+      fullWidth: true,
+      variant: 'outlined',
+      error: !!errors.dateOfBirth,
+      helperText: errors.dateOfBirth,
+      InputProps: {
+        sx: {
+          borderRadius: 2,
+        },
+      },
+      sx: {
+        '& .MuiOutlinedInput-root': {
+          borderRadius: 2,
+        },
+      },
+    },
+    inputAdornment: {
+      sx: {
+        '& .MuiIconButton-root.Mui-disabled': {
+          color: 'rgba(0, 0, 0, 0.5)',
+        },
+      },
+    },
+  }}
+  format="MM/DD/YYYY"
+/>
 
-                    <TextField
-                      name="gender"
-                      label="Gender"
-                      value={formData.gender}
-                      onChange={handleChange}
-                      required
-                      fullWidth
-                      select
-                      variant="outlined"
-                      disabled={isPatientFieldReadOnly()}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                        },
-                      }}
-                    >
-                      {genders.map(gender => (
-                        <option key={gender} value={gender}>
-                          {gender}
-                        </option>
-                      ))}
-                    </TextField>
+  <TextField
+    name="gender"
+    label="Gender"
+    value={formData.gender}
+    onChange={handleChange}
+    required
+    fullWidth
+    select
+    variant="outlined"
+    disabled={isPatientFieldReadOnly()}
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        borderRadius: 2,
+        '&.Mui-disabled fieldset': {
+          borderColor: 'rgba(0, 0, 0, 0.3)',
+        },
+      },
+      '& .MuiInputBase-input.Mui-disabled': {
+        WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+      },
+    }}
+  >
+    {genders.map(gender => (
+      <option key={gender} value={gender}>
+        {gender}
+      </option>
+    ))}
+  </TextField>
 
-                    <TextField
-                      name="phoneNumber"
-                      label="Phone Number"
-                      value={formData.phoneNumber}
-                      onChange={handleChange}
-                      required
-                      fullWidth
-                      variant="outlined"
-                      placeholder="e.g., 0909123456"
-                      disabled={isPatientFieldReadOnly()}
-                      error={!!errors.phoneNumber}
-                      helperText={errors.phoneNumber}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                        },
-                      }}
-                    />
+  <TextField
+    name="phoneNumber"
+    label="Phone Number"
+    value={formData.phoneNumber}
+    onChange={handleChange}
+    required
+    fullWidth
+    variant="outlined"
+    placeholder="e.g., 0909123456"
+    disabled={isPatientFieldReadOnly()}
+    error={!!errors.phoneNumber}
+    helperText={errors.phoneNumber}
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        borderRadius: 2,
+        '&.Mui-disabled fieldset': {
+          borderColor: 'rgba(0, 0, 0, 0.3)',
+        },
+      },
+      '& .MuiInputBase-input.Mui-disabled': {
+        WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+      },
+    }}
+  />
 
-                    <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                      <TextField
-                        name="email"
-                        label="Email"
-                        type="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                        fullWidth
-                        variant="outlined"
-                        placeholder="example@email.com"
-                        disabled={isPatientFieldReadOnly()}
-                        error={!!errors.email}
-                        helperText={errors.email}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                          },
-                        }}
-                      />
-                    </Box>
+  <Box sx={{ gridColumn: { md: 'span 2' } }}>
+    <TextField
+      name="email"
+      label="Email"
+      type="email"
+      value={formData.email}
+      onChange={handleChange}
+      required
+      fullWidth
+      variant="outlined"
+      placeholder="example@email.com"
+      disabled={isPatientFieldReadOnly()}
+      error={!!errors.email}
+      helperText={errors.email}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          borderRadius: 2,
+          '&.Mui-disabled fieldset': {
+            borderColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        '& .MuiInputBase-input.Mui-disabled': {
+          WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+        },
+      }}
+    />
+  </Box>
 
-                    <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                      <TextField
-                        name="address"
-                        label="Address"
-                        value={formData.address}
-                        onChange={handleChange}
-                        required
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Enter full address"
-                        disabled={isPatientFieldReadOnly()}
-                        error={!!errors.address}
-                        helperText={errors.address}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                          },
-                        }}
-                      />
-                    </Box>
-                  </Box>
+  <Box sx={{ gridColumn: { md: 'span 2' } }}>
+    <TextField
+      name="address"
+      label="Address"
+      value={formData.address}
+      onChange={handleChange}
+      required
+      fullWidth
+      variant="outlined"
+      placeholder="Enter full address"
+      disabled={isPatientFieldReadOnly()}
+      error={!!errors.address}
+      helperText={errors.address}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          borderRadius: 2,
+          '&.Mui-disabled fieldset': {
+            borderColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        '& .MuiInputBase-input.Mui-disabled': {
+          WebkitTextFillColor: 'rgba(0, 0, 0, 0.7)',
+        },
+      }}
+    />
+  </Box>
+</Box>
                 </div>
               </div>
 

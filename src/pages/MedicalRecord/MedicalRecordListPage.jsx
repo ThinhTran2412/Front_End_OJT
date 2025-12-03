@@ -69,6 +69,68 @@ export default function MedicalRecordListPage() {
 
   const [isReadOnlyUser, setIsReadOnlyUser] = useState(false);
 
+  const [currentRecordPage, setCurrentRecordPage] = useState(1);
+  const recordsPerPage = 4;
+
+  const filteredRecords = useMemo(() => {
+    if (!searchTerm.trim()) return records;
+
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+    return records.filter((record) => {
+      return [
+        record.patientName,
+        record.email,
+        record.phoneNumber,
+        record.address,
+        record.createdBy,
+        String(record.medicalRecordId),
+      ]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(normalizedTerm));
+    });
+  }, [records, searchTerm]);
+
+  const paginatedRecords = useMemo(() => {
+  const startIndex = (currentRecordPage - 1) * recordsPerPage;
+  const endIndex = startIndex + recordsPerPage;
+  return filteredRecords.slice(startIndex, endIndex);
+  }, [filteredRecords, currentRecordPage]);
+
+  const totalRecordPages = Math.ceil(filteredRecords.length / recordsPerPage);
+
+  const handleRecordPageChange = (newPage) => {
+    setCurrentRecordPage(newPage);
+    // Scroll to top of table when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentRecordPage(1);
+  }, [searchTerm]);
+
+  // Thêm state cho pagination
+const [orderPagination, setOrderPagination] = useState({}); // { recordId: currentPage }
+
+// Thêm hàm helper cho pagination
+const getPagedOrders = (orders, recordId) => {
+  const itemsPerPage = 6;
+  const currentPage = orderPagination[recordId] || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const pagedOrders = orders.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(orders.length / itemsPerPage);
+  
+  return { pagedOrders, currentPage, totalPages };
+};
+
+const handlePageChange = (recordId, newPage) => {
+  setOrderPagination(prev => ({
+    ...prev,
+    [recordId]: newPage
+  }));
+};
+
   const decodeJWT = (token) => {
     try {
       const base64Url = token.split('.')[1];
@@ -160,24 +222,6 @@ export default function MedicalRecordListPage() {
       setLoading(false);
     }
   };
-
-  const filteredRecords = useMemo(() => {
-    if (!searchTerm.trim()) return records;
-
-    const normalizedTerm = searchTerm.trim().toLowerCase();
-    return records.filter((record) => {
-      return [
-        record.patientName,
-        record.email,
-        record.phoneNumber,
-        record.address,
-        record.createdBy,
-        String(record.medicalRecordId),
-      ]
-        .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(normalizedTerm));
-    });
-  }, [records, searchTerm]);
 
   const summary = useMemo(() => {
     const totalRecords = records.length;
@@ -512,7 +556,7 @@ export default function MedicalRecordListPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white/80 divide-y divide-gray-200">
-                      {filteredRecords.map((record) => (
+                      {paginatedRecords.map((record) => (
                         <>
                         <tr key={record.medicalRecordId} className="hover:bg-purple-50/50 transition-all duration-200">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
@@ -573,11 +617,12 @@ export default function MedicalRecordListPage() {
                             </div>
                           </td>
                         </tr>
-                        {/* Expanded Test Orders Section */}
+                        {/* Expanded Test Orders Section - Complete Version with Pagination */}
                         {expandedRecords.has(record.medicalRecordId) && record.testOrders.length > 0 && (
                           <tr>
                             <td colSpan="7" className="px-6 py-4 bg-gray-50">
                               <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                {/* Header Section */}
                                 <div className="flex items-center justify-between mb-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
@@ -594,6 +639,7 @@ export default function MedicalRecordListPage() {
                                   <div className="flex items-center gap-2">
                                     {record.testOrders.length > 0 && (
                                       <>
+                                        {/* View Mode Toggle */}
                                         <div className="flex items-center gap-1 border border-gray-300 rounded-lg p-1">
                                           <button
                                             onClick={() => setViewMode('card')}
@@ -618,6 +664,8 @@ export default function MedicalRecordListPage() {
                                             <List className="w-4 h-4" />
                                           </button>
                                         </div>
+                                        
+                                        {/* Export Excel Button */}
                                         <button
                                           onClick={() => handleExportExcel(record.medicalRecordId, record.patientId, record.patientName)}
                                           disabled={exporting[record.medicalRecordId]}
@@ -636,7 +684,7 @@ export default function MedicalRecordListPage() {
                                   </div>
                                 </div>
 
-                                {/* Select All (for list view) */}
+                                {/* Select All (for list view only) */}
                                 {record.testOrders.length > 0 && viewMode === 'list' && (
                                   <div className="mb-4 flex items-center gap-2 pb-3 border-b">
                                     <button
@@ -653,368 +701,405 @@ export default function MedicalRecordListPage() {
                                   </div>
                                 )}
 
-                                {/* Test Orders Display */}
-                                {viewMode === 'card' ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {record.testOrders.map((order) => {
-                                      const testOrderId = order.testOrderId || order.TestOrderId;
-                                      const orderCode = order.orderCode || order.OrderCode;
-                                      const status = order.status || order.Status;
-                                      const isSelected = selectedOrders[record.medicalRecordId]?.has(testOrderId);
-                                      const isExpanded = expandedOrders.has(testOrderId);
-                                      const orderTestResults = testResults[testOrderId] || [];
-                                      const hasResults = orderTestResults.length > 0 || order.testResults || order.TestResults;
-                                      const isLoadingResults = loadingResults.has(testOrderId);
-                                      const isExportingPdf = exportingPdf.has(testOrderId);
-                                      
-                                      return (
-                                        <div 
-                                          key={testOrderId} 
-                                          className={`border-2 rounded-lg transition-all ${
-                                            isSelected 
-                                              ? 'border-blue-500 bg-blue-50' 
-                                              : 'border-gray-200 hover:border-blue-300 bg-white'
-                                          }`}
-                                        >
-                                          <div 
-                                            className="p-4 cursor-pointer"
-                                            onClick={() => handleSelectOrder(record.medicalRecordId, testOrderId)}
-                                          >
-                                            <div className="flex items-start justify-between mb-3">
-                                              <div className="flex items-center gap-2">
-                                                {isSelected ? (
-                                                  <CheckSquare2 className="w-5 h-5 text-blue-600" />
-                                                ) : (
-                                                  <Square className="w-5 h-5 text-gray-400" />
-                                                )}
-                                                <div>
-                                                  <h4 className="text-sm font-semibold text-gray-900">{orderCode || 'N/A'}</h4>
-                                                  <p className="text-xs text-gray-500 font-mono truncate max-w-[150px]">{testOrderId}</p>
-                                                </div>
-                                              </div>
-                                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
-                                                {status || 'N/A'}
-                                              </span>
-                                            </div>
-                                            <div className="space-y-2">
-                                              <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Priority:</span>
-                                                <span className="font-medium">{order.priority || order.Priority || 'N/A'}</span>
-                                              </div>
-                                              <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Created:</span>
-                                                <span className="font-medium">{formatDate(order.createdAt || order.CreatedAt)}</span>
-                                              </div>
-                                              {hasResults && (
-                                                <div className="flex items-center gap-1 text-xs text-green-600">
-                                                  <CheckCircle className="w-3 h-3" />
-                                                  <span>{orderTestResults.length > 0 ? `${orderTestResults.length} Results` : 'Has Results'}</span>
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-
-                                          {hasResults && (
-                                            <div className="px-4 pb-3 flex items-center gap-2 border-t border-gray-200">
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  toggleExpandOrder(testOrderId);
-                                                }}
-                                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                                {/* Test Orders Display with Pagination */}
+                                {(() => {
+                                  const { pagedOrders, currentPage, totalPages } = getPagedOrders(record.testOrders, record.medicalRecordId);
+                                  
+                                  return (
+                                    <>
+                                      {viewMode === 'card' ? (
+                                        /* ==================== CARD VIEW ==================== */
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                          {pagedOrders.map((order) => {
+                                            const testOrderId = order.testOrderId || order.TestOrderId;
+                                            const orderCode = order.orderCode || order.OrderCode;
+                                            const status = order.status || order.Status;
+                                            const isSelected = selectedOrders[record.medicalRecordId]?.has(testOrderId);
+                                            const isExpanded = expandedOrders.has(testOrderId);
+                                            const orderTestResults = testResults[testOrderId] || [];
+                                            const hasResults = orderTestResults.length > 0 || order.testResults || order.TestResults;
+                                            const isLoadingResults = loadingResults.has(testOrderId);
+                                            const isExportingPdf = exportingPdf.has(testOrderId);
+                                            
+                                            return (
+                                              <div 
+                                                key={testOrderId} 
+                                                className={`border-2 rounded-lg transition-all ${
+                                                  isSelected 
+                                                    ? 'border-blue-500 bg-blue-50' 
+                                                    : 'border-gray-200 hover:border-blue-300 bg-white'
+                                                }`}
                                               >
-                                                {isExpanded ? (
-                                                  <>
-                                                    <ChevronUp className="w-4 h-4" />
-                                                    Hide Results
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    <ChevronDown className="w-4 h-4" />
-                                                    View Results
-                                                  </>
-                                                )}
-                                              </button>
-                                              <button
-                                                onClick={(e) => handleExportPdf(testOrderId, record.patientName, e)}
-                                                disabled={isExportingPdf}
-                                                className="flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title="Export PDF"
-                                              >
-                                                {isExportingPdf ? (
-                                                  <RingSpinner size="small" text="" theme="blue" />
-                                                ) : (
-                                                  <FileDown className="w-4 h-4" />
-                                                )}
-                                                PDF
-                                              </button>
-                                            </div>
-                                          )}
-
-                                          {isExpanded && hasResults && (
-                                            <div className="px-4 pb-4 border-t border-gray-200">
-                                              {isLoadingResults ? (
-                                                <div className="py-4 flex items-center justify-center">
-                                                  <RingSpinner size="small" text="" theme="blue" />
-                                                  <span className="ml-2 text-xs text-gray-600">Loading results...</span>
-                                                </div>
-                                              ) : orderTestResults.length > 0 ? (
-                                                <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
-                                                  <div className="text-xs font-semibold text-gray-700 mb-2">Test Results:</div>
-                                                  <div className="space-y-2">
-                                                    {orderTestResults.map((result, idx) => (
-                                                      <div 
-                                                        key={result.testResultId || idx}
-                                                        className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100"
-                                                      >
-                                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                                          <div>
-                                                            <span className="text-gray-500">Parameter:</span>
-                                                            <p className="font-semibold text-gray-900">{result.parameter || result.Parameter || 'N/A'}</p>
-                                                          </div>
-                                                          <div>
-                                                            <span className="text-gray-500">Value:</span>
-                                                            <p className="font-bold text-blue-700">
-                                                              {result.valueText || result.ValueText || 
-                                                               (result.valueNumeric !== undefined && result.valueNumeric !== null 
-                                                                 ? result.valueNumeric.toFixed(2) 
-                                                                 : result.ValueNumeric !== undefined && result.ValueNumeric !== null
-                                                                   ? result.ValueNumeric.toFixed(2)
-                                                                   : 'N/A')}
-                                                            </p>
-                                                          </div>
-                                                          <div>
-                                                            <span className="text-gray-500">Unit:</span>
-                                                            <p className="text-gray-900">{result.unit || result.Unit || 'N/A'}</p>
-                                                          </div>
-                                                          <div>
-                                                            <span className="text-gray-500">Status:</span>
-                                                            <p className={`font-medium ${
-                                                              (result.resultStatus || result.ResultStatus)?.toLowerCase() === 'completed' 
-                                                                ? 'text-green-600' 
-                                                                : 'text-gray-600'
-                                                            }`}>
-                                                              {result.resultStatus || result.ResultStatus || 'N/A'}
-                                                            </p>
-                                                          </div>
-                                                          {(result.referenceRange || result.ReferenceRange) && (
-                                                            <div className="col-span-2">
-                                                              <span className="text-gray-500">Reference Range:</span>
-                                                              <p className="text-gray-900">{result.referenceRange || result.ReferenceRange}</p>
-                                                            </div>
-                                                          )}
-                                                        </div>
+                                                {/* Card Header */}
+                                                <div 
+                                                  className="p-4 cursor-pointer"
+                                                  onClick={() => handleSelectOrder(record.medicalRecordId, testOrderId)}
+                                                >
+                                                  <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                      {isSelected ? (
+                                                        <CheckSquare2 className="w-5 h-5 text-blue-600" />
+                                                      ) : (
+                                                        <Square className="w-5 h-5 text-gray-400" />
+                                                      )}
+                                                      <div>
+                                                        <h4 className="text-sm font-semibold text-gray-900">{orderCode || 'N/A'}</h4>
+                                                        <p className="text-xs text-gray-500 font-mono truncate max-w-[150px]">{testOrderId}</p>
                                                       </div>
-                                                    ))}
+                                                    </div>
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
+                                                      {status || 'N/A'}
+                                                    </span>
                                                   </div>
-                                                </div>
-                                              ) : (
-                                                <div className="py-4 text-center">
-                                                  <div className="text-xs text-gray-500 mb-2">
-                                                    Detailed test results are not available for viewing online.
-                                                  </div>
-                                                  <div className="text-xs text-blue-600 font-medium">
-                                                    Please export PDF to view complete test results.
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {record.testOrders.map((order) => {
-                                      const testOrderId = order.testOrderId || order.TestOrderId;
-                                      const orderCode = order.orderCode || order.OrderCode;
-                                      const status = order.status || order.Status;
-                                      const isSelected = selectedOrders[record.medicalRecordId]?.has(testOrderId);
-                                      const isExpanded = expandedOrders.has(testOrderId);
-                                      const orderTestResults = testResults[testOrderId] || [];
-                                      const hasResults = orderTestResults.length > 0 || order.testResults || order.TestResults;
-                                      const isLoadingResults = loadingResults.has(testOrderId);
-                                      const isExportingPdf = exportingPdf.has(testOrderId);
-                                      
-                                      return (
-                                        <div 
-                                          key={testOrderId} 
-                                          className={`border-2 rounded-lg transition-all ${
-                                            isSelected 
-                                              ? 'border-blue-500 bg-blue-50' 
-                                              : 'border-gray-200 hover:border-gray-300 bg-white'
-                                          }`}
-                                        >
-                                          <div className="p-4">
-                                            <div className="flex items-center gap-4">
-                                              <button
-                                                onClick={() => handleSelectOrder(record.medicalRecordId, testOrderId)}
-                                                className="flex-shrink-0"
-                                              >
-                                                {isSelected ? (
-                                                  <CheckSquare2 className="w-5 h-5 text-blue-600" />
-                                                ) : (
-                                                  <Square className="w-5 h-5 text-gray-400" />
-                                                )}
-                                              </button>
-                                              <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
-                                                <div>
-                                                  <p className="text-xs text-gray-500">Order Code</p>
-                                                  <p className="text-sm font-semibold">{orderCode || 'N/A'}</p>
-                                                  <p className="text-xs text-gray-400 font-mono">{testOrderId}</p>
-                                                </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">Status</p>
-                                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
-                                                    {status || 'N/A'}
-                                                  </span>
-                                                </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">Priority</p>
-                                                  <p className="text-sm font-medium">{order.priority || order.Priority || 'N/A'}</p>
-                                                </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">Created Date</p>
-                                                  <p className="text-sm font-medium">{formatDateTime(order.createdAt || order.CreatedAt)}</p>
-                                                </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">Run Date</p>
-                                                  <p className="text-sm font-medium">
-                                                    {(order.runDate || order.RunDate) && (order.runDate !== "0001-01-01T00:00:00" && order.RunDate !== "0001-01-01T00:00:00")
-                                                      ? formatDateTime(order.runDate || order.RunDate) 
-                                                      : "Not run yet"}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            </div>
-                                            {hasResults && (
-                                              <div className="mt-3 pt-3 border-t border-gray-200">
-                                                <div className="flex items-center justify-between">
-                                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                  <div className="space-y-2">
+                                                    <div className="flex justify-between text-xs">
+                                                      <span className="text-gray-500">Priority:</span>
+                                                      <span className="font-medium">{order.priority || order.Priority || 'N/A'}</span>
+                                                    </div>
                                                     {hasResults && (
-                                                      <div className="bg-green-50 p-2 rounded text-xs flex items-center gap-1">
-                                                        <CheckCircle className="w-3 h-3 text-green-600" />
-                                                        <span className="text-gray-500">Results: </span>
-                                                        <span className="text-gray-900">
-                                                          {orderTestResults.length > 0 ? `${orderTestResults.length} test results` : 'Available'}
-                                                        </span>
+                                                      <div className="flex items-center gap-1 text-xs text-green-600">
+                                                        <CheckCircle className="w-3 h-3" />
+                                                        <span>{orderTestResults.length > 0 ? `${orderTestResults.length} Results` : 'Has Results'}</span>
                                                       </div>
                                                     )}
                                                   </div>
+                                                </div>
+
+                                                {/* Card Actions */}
+                                                {hasResults && (
+                                                  <div className="px-4 pb-3 flex items-center gap-2 border-t border-gray-200">
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleExpandOrder(testOrderId);
+                                                      }}
+                                                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                                                    >
+                                                      {isExpanded ? (
+                                                        <>
+                                                          <ChevronUp className="w-4 h-4" />
+                                                          Hide Results
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <ChevronDown className="w-4 h-4" />
+                                                          View Results
+                                                        </>
+                                                      )}
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => handleExportPdf(testOrderId, record.patientName, e)}
+                                                      disabled={isExportingPdf}
+                                                      className="flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                      title="Export PDF"
+                                                    >
+                                                      {isExportingPdf ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                      ) : (
+                                                        <FileDown className="w-4 h-4" />
+                                                      )}
+                                                      PDF
+                                                    </button>
+                                                  </div>
+                                                )}
+
+                                                {/* Expanded Results */}
+                                                {isExpanded && hasResults && (
+                                                  <div className="px-4 pb-4 border-t border-gray-200">
+                                                    {isLoadingResults ? (
+                                                      <div className="py-4 flex items-center justify-center">
+                                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                                        <span className="ml-2 text-xs text-gray-600">Loading results...</span>
+                                                      </div>
+                                                    ) : orderTestResults.length > 0 ? (
+                                                      <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
+                                                        <div className="text-xs font-semibold text-gray-700 mb-2">Test Results:</div>
+                                                        <div className="space-y-2">
+                                                          {orderTestResults.map((result, idx) => (
+                                                            <div 
+                                                              key={result.testResultId || idx}
+                                                              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100"
+                                                            >
+                                                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                <div>
+                                                                  <span className="text-gray-500">Parameter:</span>
+                                                                  <p className="font-semibold text-gray-900">{result.parameter || result.Parameter || 'N/A'}</p>
+                                                                </div>
+                                                                <div>
+                                                                  <span className="text-gray-500">Value:</span>
+                                                                  <p className="font-bold text-blue-700">
+                                                                    {result.valueText || result.ValueText || 
+                                                                    (result.valueNumeric !== undefined && result.valueNumeric !== null 
+                                                                      ? result.valueNumeric.toFixed(2) 
+                                                                      : result.ValueNumeric !== undefined && result.ValueNumeric !== null
+                                                                        ? result.ValueNumeric.toFixed(2)
+                                                                        : 'N/A')}
+                                                                  </p>
+                                                                </div>
+                                                                <div>
+                                                                  <span className="text-gray-500">Unit:</span>
+                                                                  <p className="text-gray-900">{result.unit || result.Unit || 'N/A'}</p>
+                                                                </div>
+                                                                <div>
+                                                                  <span className="text-gray-500">Status:</span>
+                                                                  <p className={`font-medium ${
+                                                                    (result.resultStatus || result.ResultStatus)?.toLowerCase() === 'completed' 
+                                                                      ? 'text-green-600' 
+                                                                      : 'text-gray-600'
+                                                                  }`}>
+                                                                    {result.resultStatus || result.ResultStatus || 'N/A'}
+                                                                  </p>
+                                                                </div>
+                                                                {(result.referenceRange || result.ReferenceRange) && (
+                                                                  <div className="col-span-2">
+                                                                    <span className="text-gray-500">Reference Range:</span>
+                                                                    <p className="text-gray-900">{result.referenceRange || result.ReferenceRange}</p>
+                                                                  </div>
+                                                                )}
+                                                              </div>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="py-4 text-center">
+                                                        <div className="text-xs text-gray-500 mb-2">
+                                                          Detailed test results are not available for viewing online.
+                                                        </div>
+                                                        <div className="text-xs text-blue-600 font-medium">
+                                                          Please export PDF to view complete test results.
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        /* ==================== LIST VIEW ==================== */
+                                        <div className="space-y-2">
+                                          {pagedOrders.map((order) => {
+                                            const testOrderId = order.testOrderId || order.TestOrderId;
+                                            const orderCode = order.orderCode || order.OrderCode;
+                                            const status = order.status || order.Status;
+                                            const isSelected = selectedOrders[record.medicalRecordId]?.has(testOrderId);
+                                            const isExpanded = expandedOrders.has(testOrderId);
+                                            const orderTestResults = testResults[testOrderId] || [];
+                                            const hasResults = orderTestResults.length > 0 || order.testResults || order.TestResults;
+                                            const isLoadingResults = loadingResults.has(testOrderId);
+                                            const isExportingPdf = exportingPdf.has(testOrderId);
+                                            
+                                            return (
+                                              <div 
+                                                key={testOrderId} 
+                                                className={`border-2 rounded-lg transition-all ${
+                                                  isSelected 
+                                                    ? 'border-blue-500 bg-blue-50' 
+                                                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                                                }`}
+                                              >
+                                                {/* List Item Header */}
+                                                <div className="p-4">
+                                                  <div className="flex items-center gap-4">
+                                                    <button
+                                                      onClick={() => handleSelectOrder(record.medicalRecordId, testOrderId)}
+                                                      className="flex-shrink-0"
+                                                    >
+                                                      {isSelected ? (
+                                                        <CheckSquare2 className="w-5 h-5 text-blue-600" />
+                                                      ) : (
+                                                        <Square className="w-5 h-5 text-gray-400" />
+                                                      )}
+                                                    </button>
+                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
+                                                      <div>
+                                                        <p className="text-xs text-gray-500">Order Code</p>
+                                                        <p className="text-sm font-semibold">{orderCode || 'N/A'}</p>
+                                                        <p className="text-xs text-gray-400 font-mono">{testOrderId}</p>
+                                                      </div>
+                                                      <div>
+                                                        <p className="text-xs text-gray-500">Status</p>
+                                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
+                                                          {status || 'N/A'}
+                                                        </span>
+                                                      </div>
+                                                      <div>
+                                                        <p className="text-xs text-gray-500">Priority</p>
+                                                        <p className="text-sm font-medium">{order.priority || order.Priority || 'N/A'}</p>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  {/* List Item Actions */}
                                                   {hasResults && (
-                                                    <div className="flex items-center gap-2 ml-3">
-                                                      <button
-                                                        onClick={() => toggleExpandOrder(testOrderId)}
-                                                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                                                      >
-                                                        {isExpanded ? (
-                                                          <>
-                                                            <ChevronUp className="w-4 h-4" />
-                                                            Hide
-                                                          </>
-                                                        ) : (
-                                                          <>
-                                                            <ChevronDown className="w-4 h-4" />
-                                                            View
-                                                          </>
-                                                        )}
-                                                      </button>
-                                                      <button
-                                                        onClick={(e) => handleExportPdf(testOrderId, record.patientName, e)}
-                                                        disabled={isExportingPdf}
-                                                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        title="Export PDF"
-                                                      >
-                                                        {isExportingPdf ? (
-                                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                                        ) : (
-                                                          <FileDown className="w-4 h-4" />
-                                                        )}
-                                                        PDF
-                                                      </button>
+                                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                                      <div className="flex items-center justify-between">
+                                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                          <div className="bg-green-50 p-2 rounded text-xs flex items-center gap-1">
+                                                            <CheckCircle className="w-3 h-3 text-green-600" />
+                                                            <span className="text-gray-500">Results: </span>
+                                                            <span className="text-gray-900">
+                                                              {orderTestResults.length > 0 ? `${orderTestResults.length} test results` : 'Available'}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 ml-3">
+                                                          <button
+                                                            onClick={() => toggleExpandOrder(testOrderId)}
+                                                            className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                                                          >
+                                                            {isExpanded ? (
+                                                              <>
+                                                                <ChevronUp className="w-4 h-4" />
+                                                                Hide
+                                                              </>
+                                                            ) : (
+                                                              <>
+                                                                <ChevronDown className="w-4 h-4" />
+                                                                View
+                                                              </>
+                                                            )}
+                                                          </button>
+                                                          <button
+                                                            onClick={(e) => handleExportPdf(testOrderId, record.patientName, e)}
+                                                            disabled={isExportingPdf}
+                                                            className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title="Export PDF"
+                                                          >
+                                                            {isExportingPdf ? (
+                                                              <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                              <FileDown className="w-4 h-4" />
+                                                            )}
+                                                            PDF
+                                                          </button>
+                                                        </div>
+                                                      </div>
                                                     </div>
                                                   )}
                                                 </div>
-                                              </div>
-                                            )}
-                                          </div>
 
-                                          {isExpanded && hasResults && (
-                                            <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
-                                              {isLoadingResults ? (
-                                                <div className="py-4 flex items-center justify-center">
-                                                  <RingSpinner size="small" text="" theme="blue" />
-                                                  <span className="ml-2 text-xs text-gray-600">Loading results...</span>
-                                                </div>
-                                              ) : orderTestResults.length > 0 ? (
-                                                <div className="mt-3 space-y-3">
-                                                  <div className="text-sm font-semibold text-gray-700 mb-3">Test Results ({orderTestResults.length}):</div>
-                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-                                                    {orderTestResults.map((result, idx) => (
-                                                      <div 
-                                                        key={result.testResultId || idx}
-                                                        className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100 shadow-sm"
-                                                      >
-                                                        <div className="space-y-2">
-                                                          <div className="flex items-start justify-between">
-                                                            <div className="flex-1">
-                                                              <span className="text-xs text-gray-500">Parameter</span>
-                                                              <p className="text-sm font-semibold text-gray-900">{result.parameter || result.Parameter || 'N/A'}</p>
+                                                {/* Expanded Results */}
+                                                {isExpanded && hasResults && (
+                                                  <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
+                                                    {isLoadingResults ? (
+                                                      <div className="py-4 flex items-center justify-center">
+                                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                                        <span className="ml-2 text-xs text-gray-600">Loading results...</span>
+                                                      </div>
+                                                    ) : orderTestResults.length > 0 ? (
+                                                      <div className="mt-3 space-y-3">
+                                                        <div className="text-sm font-semibold text-gray-700 mb-3">Test Results ({orderTestResults.length}):</div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                                                          {orderTestResults.map((result, idx) => (
+                                                            <div 
+                                                              key={result.testResultId || idx}
+                                                              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100 shadow-sm"
+                                                            >
+                                                              <div className="space-y-2">
+                                                                <div className="flex items-start justify-between">
+                                                                  <div className="flex-1">
+                                                                    <span className="text-xs text-gray-500">Parameter</span>
+                                                                    <p className="text-sm font-semibold text-gray-900">{result.parameter || result.Parameter || 'N/A'}</p>
+                                                                  </div>
+                                                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                                    (result.resultStatus || result.ResultStatus)?.toLowerCase() === 'completed' 
+                                                                      ? 'bg-green-100 text-green-700' 
+                                                                      : 'bg-gray-100 text-gray-600'
+                                                                  }`}>
+                                                                    {result.resultStatus || result.ResultStatus || 'N/A'}
+                                                                  </span>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                  <div>
+                                                                    <span className="text-xs text-gray-500">Value</span>
+                                                                    <p className="text-base font-bold text-blue-700">
+                                                                      {result.valueText || result.ValueText || 
+                                                                      (result.valueNumeric !== undefined && result.valueNumeric !== null 
+                                                                        ? result.valueNumeric.toFixed(2) 
+                                                                        : result.ValueNumeric !== undefined && result.ValueNumeric !== null
+                                                                          ? result.ValueNumeric.toFixed(2)
+                                                                          : 'N/A')}
+                                                                    </p>
+                                                                  </div>
+                                                                  <div>
+                                                                    <span className="text-xs text-gray-500">Unit</span>
+                                                                    <p className="text-sm font-medium text-gray-900">{result.unit || result.Unit || 'N/A'}</p>
+                                                                  </div>
+                                                                </div>
+                                                                {(result.referenceRange || result.ReferenceRange) && (
+                                                                  <div className="pt-2 border-t border-blue-200">
+                                                                    <span className="text-xs text-gray-500">Reference Range</span>
+                                                                    <p className="text-xs font-medium text-gray-700">{result.referenceRange || result.ReferenceRange}</p>
+                                                                  </div>
+                                                                )}
+                                                              </div>
                                                             </div>
-                                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                              (result.resultStatus || result.ResultStatus)?.toLowerCase() === 'completed' 
-                                                                ? 'bg-green-100 text-green-700' 
-                                                                : 'bg-gray-100 text-gray-600'
-                                                            }`}>
-                                                              {result.resultStatus || result.ResultStatus || 'N/A'}
-                                                            </span>
-                                                          </div>
-                                                          <div className="grid grid-cols-2 gap-2">
-                                                            <div>
-                                                              <span className="text-xs text-gray-500">Value</span>
-                                                              <p className="text-base font-bold text-blue-700">
-                                                                {result.valueText || result.ValueText || 
-                                                                 (result.valueNumeric !== undefined && result.valueNumeric !== null 
-                                                                   ? result.valueNumeric.toFixed(2) 
-                                                                   : result.ValueNumeric !== undefined && result.ValueNumeric !== null
-                                                                     ? result.ValueNumeric.toFixed(2)
-                                                                     : 'N/A')}
-                                                              </p>
-                                                            </div>
-                                                            <div>
-                                                              <span className="text-xs text-gray-500">Unit</span>
-                                                              <p className="text-sm font-medium text-gray-900">{result.unit || result.Unit || 'N/A'}</p>
-                                                            </div>
-                                                          </div>
-                                                          {(result.referenceRange || result.ReferenceRange) && (
-                                                            <div className="pt-2 border-t border-blue-200">
-                                                              <span className="text-xs text-gray-500">Reference Range</span>
-                                                              <p className="text-xs font-medium text-gray-700">{result.referenceRange || result.ReferenceRange}</p>
-                                                            </div>
-                                                          )}
+                                                          ))}
                                                         </div>
                                                       </div>
-                                                    ))}
+                                                    ) : (
+                                                      <div className="py-4 text-center">
+                                                        <div className="text-xs text-gray-500 mb-2">
+                                                          Detailed test results are not available for viewing online.
+                                                        </div>
+                                                        <div className="text-xs text-blue-600 font-medium">
+                                                          Please export PDF to view complete test results.
+                                                        </div>
+                                                      </div>
+                                                    )}
                                                   </div>
-                                                </div>
-                                              ) : (
-                                                <div className="py-4 text-center">
-                                                  <div className="text-xs text-gray-500 mb-2">
-                                                    Detailed test results are not available for viewing online.
-                                                  </div>
-                                                  <div className="text-xs text-blue-600 font-medium">
-                                                    Please export PDF to view complete test results.
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                                      )}
+
+                                      {/* Pagination Controls */}
+                                      {totalPages > 1 && (
+                                        <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+                                          <div className="text-sm text-gray-500">
+                                            Showing {((currentPage - 1) * 6) + 1} - {Math.min(currentPage * 6, record.testOrders.length)} of {record.testOrders.length} orders
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={() => handlePageChange(record.medicalRecordId, currentPage - 1)}
+                                              disabled={currentPage === 1}
+                                              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                              Previous
+                                            </button>
+                                            <div className="flex items-center gap-1">
+                                              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                                <button
+                                                  key={page}
+                                                  onClick={() => handlePageChange(record.medicalRecordId, page)}
+                                                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                                    currentPage === page
+                                                      ? 'bg-blue-600 text-white'
+                                                      : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                                                  }`}
+                                                >
+                                                  {page}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <button
+                                              onClick={() => handlePageChange(record.medicalRecordId, currentPage + 1)}
+                                              disabled={currentPage === totalPages}
+                                              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                              Next
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </td>
                           </tr>
@@ -1023,6 +1108,71 @@ export default function MedicalRecordListPage() {
                       ))}
                     </tbody>
                   </table>
+                  {/* Records Pagination Controls */}
+{totalRecordPages > 1 && (
+  <div className="px-6 py-4 border-t border-gray-200 bg-white">
+    <div className="flex items-center justify-between">
+      <div className="text-sm text-gray-500">
+        Showing <span className="font-semibold text-gray-900">
+          {((currentRecordPage - 1) * recordsPerPage) + 1}
+        </span> - <span className="font-semibold text-gray-900">
+          {Math.min(currentRecordPage * recordsPerPage, filteredRecords.length)}
+        </span> of <span className="font-semibold text-gray-900">
+          {filteredRecords.length}
+        </span> records
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => handleRecordPageChange(currentRecordPage - 1)}
+          disabled={currentRecordPage === 1}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Previous
+        </button>
+        <div className="flex items-center gap-1">
+          {Array.from({ length: totalRecordPages }, (_, i) => i + 1).map((page) => {
+            // Show first page, last page, current page, and pages around current
+            const showPage = 
+              page === 1 || 
+              page === totalRecordPages || 
+              (page >= currentRecordPage - 1 && page <= currentRecordPage + 1);
+            
+            const showEllipsis = 
+              (page === currentRecordPage - 2 && currentRecordPage > 3) ||
+              (page === currentRecordPage + 2 && currentRecordPage < totalRecordPages - 2);
+
+            if (showEllipsis) {
+              return <span key={page} className="px-2 text-gray-400">...</span>;
+            }
+
+            if (!showPage) return null;
+
+            return (
+              <button
+                key={page}
+                onClick={() => handleRecordPageChange(page)}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  currentRecordPage === page
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {page}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={() => handleRecordPageChange(currentRecordPage + 1)}
+          disabled={currentRecordPage === totalRecordPages}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+)}
                 </div>
             )}
           </div>

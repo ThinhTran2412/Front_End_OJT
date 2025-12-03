@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, User, Mail, Plus, ClipboardList, Edit, ChevronRight, FileText, Calendar, Clock, ChevronDown, ChevronUp, Eye } from 'lucide-react';
-import { getAllMedicalRecords, createMedicalRecord } from '../../services/MedicalRecordService';
 import { createTestOrder, updateTestOrder, deleteTestOrder } from '../../services/TestOrderService';
 import { getAllPatients } from '../../services/PatientService';
 import TestOrderModal from '../../components/modals/TestOrderModal';
@@ -10,6 +9,8 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { useAuthStore } from '../../store/authStore';
 import { InlineLoader } from '../../components/Loading';
+import { getAllMedicalRecords, createMedicalRecord, updateMedicalRecord } from '../../services/MedicalRecordService';
+import MedicalRecordEditModal from '../../components/modals/MedicalRecordEditModal';
 
 const decodeJWT = (token) => {
   try {
@@ -25,6 +26,31 @@ const decodeJWT = (token) => {
   } catch (error) {
     console.error('Error decoding JWT:', error);
     return null;
+  }
+};
+
+// Get All Test Orders (NEW)
+export const getTestOrders = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    
+    // Support các query params
+    if (params.page) queryParams.append('Page', params.page);
+    if (params.pageSize) queryParams.append('PageSize', params.pageSize);
+    if (params.search) queryParams.append('Search', params.search);
+    if (params.status) queryParams.append('Status', params.status);
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/TestOrder/getList?${queryString}` : '/TestOrder/getList';
+    
+    console.log('Fetching test orders from:', url);
+    const response = await api.get(url);
+    console.log('Test orders response:', response.data);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching test orders:', error);
+    throw error;
   }
 };
 
@@ -58,6 +84,7 @@ export default function PatientMedicalRecordDetailPage() {
   const [testOrdersPage, setTestOrdersPage] = useState(1);
   const [testOrdersPageSize, setTestOrdersPageSize] = useState(3); // Hiển thị tối đa 3 test orders
   const [allTestOrders, setAllTestOrders] = useState([]);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Toast hook
   const { toasts, showToast, removeToast } = useToast();
@@ -124,7 +151,46 @@ export default function PatientMedicalRecordDetailPage() {
     };
   };
 
-  const fetchPatientMedicalRecords = async () => {
+  
+
+  const handleUpdateMedicalRecord = async (formData) => {
+  try {
+    if (!patientData?.medicalRecordId) {
+      showToast('Medical record not found', 'error');
+      return;
+    }
+
+    // Format dateOfBirth nếu cần
+    let dateOfBirth = formData.dateOfBirth;
+    if (dateOfBirth && typeof dateOfBirth === 'string' && dateOfBirth.includes('T')) {
+      dateOfBirth = dateOfBirth.split('T')[0];
+    }
+
+    const updateData = {
+      medicalRecordId: patientData.medicalRecordId,
+      fullName: formData.fullName,
+      dateOfBirth: dateOfBirth,
+      gender: formData.gender,
+      phoneNumber: formData.phoneNumber || '',
+      email: formData.email || '',
+      address: formData.address || '',
+      identifyNumber: formData.identifyNumber,
+    };
+
+    await updateMedicalRecord(patientData.medicalRecordId, updateData);
+    showToast('Medical record updated successfully!', 'success');
+    await fetchPatientMedicalRecords();
+    setIsEditModalOpen(false);
+  } catch (err) {
+    console.error('Error updating medical record:', err);
+    showToast(
+      err.response?.data?.message || err.message || 'Failed to update medical record',
+      'error'
+    );
+  }
+};
+
+   const fetchPatientMedicalRecords = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -339,17 +405,100 @@ export default function PatientMedicalRecordDetailPage() {
     return `${month}/${day}/${year}`;
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return '-';
+  // Replace the formatDateTime function (around line 274-283)
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  
+  try {
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', { 
-      year: 'numeric', 
-      month: '2-digit', 
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date:', dateString);
+      return '-';
+    }
+    
+    // Format: MM/DD/YYYY, HH:MM AM/PM
+    const options = {
+      year: 'numeric',
+      month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+      minute: '2-digit',
+      hour12: true, // Use 12-hour format with AM/PM
+    };
+    
+    return date.toLocaleString('en-US', options);
+  } catch (error) {
+    console.error('Error formatting date:', error, 'Input:', dateString);
+    return '-';
+  }
+};
+
+// Alternative: If you want to display in specific timezone (e.g., Vietnam UTC+7)
+const formatDateTimeVN = (dateString) => {
+  if (!dateString) return '-';
+  
+  try {
+    const date = new Date(dateString);
+    
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date:', dateString);
+      return '-';
+    }
+    
+    // Format for Vietnam timezone (UTC+7)
+    const options = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false, // 24-hour format
+      timeZone: 'Asia/Ho_Chi_Minh', // Vietnam timezone
+    };
+    
+    return date.toLocaleString('en-US', options);
+  } catch (error) {
+    console.error('Error formatting date:', error, 'Input:', dateString);
+    return '-';
+  }
+};
+
+// Or if you want a cleaner format: "Nov 27, 2025 at 1:55 PM"
+const formatDateTimeFriendly = (dateString) => {
+  if (!dateString) return '-';
+  
+  try {
+    const date = new Date(dateString);
+    
+    if (isNaN(date.getTime())) {
+      return '-';
+    }
+    
+    // Format: "Nov 27, 2025 at 1:55 PM"
+    const dateOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    };
+    
+    const timeOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    };
+    
+    const datePart = date.toLocaleDateString('en-US', dateOptions);
+    const timePart = date.toLocaleTimeString('en-US', timeOptions);
+    
+    return `${datePart} at ${timePart}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '-';
+  }
+};
 
   const getStatusColor = (status) => {
     if (status === 'Reviewed By AI') {
@@ -499,6 +648,15 @@ export default function PatientMedicalRecordDetailPage() {
               >
                 {isCreatingRecord ? 'Creating...' : 'Create Medical Record'}
               </button>
+              {patientData?.medicalRecordId && (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                >
+                  <Edit className="w-4 h-4" />
+                  Update Medical Record
+                </button>
+              )}
               <button 
                 onClick={() => navigate('/patients')}
                 className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
@@ -555,6 +713,15 @@ export default function PatientMedicalRecordDetailPage() {
                       {isCreatingRecord ? 'Creating...' : 'Create Medical Record'}
                     </button>
                   )}
+                  {patientData?.medicalRecordId && (
+                    <button
+                      onClick={() => setIsEditModalOpen(true)}
+                      className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Update Medical Record
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -577,18 +744,18 @@ export default function PatientMedicalRecordDetailPage() {
                     {patientData.email}
                   </p>
                 </div>
-                {patientData.medicalRecordId && (
-                  <>
-                    <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
-                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Created At</label>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">{formatDateTime(patientData.createdAt)}</p>
-                    </div>
-                    <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
-                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Created By</label>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.createdBy || 'System'}</p>
-                    </div>
-                  </>
-                )}
+                <div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Gender</label>
+  <p className="text-sm font-semibold text-gray-900 mt-1 capitalize">{patientData.gender || 'N/A'}</p>
+</div>
+<div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Phone Number</label>
+  <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.phoneNumber || 'N/A'}</p>
+</div>
+<div className="bg-white/60 rounded-lg p-3 border border-gray-200/50">
+  <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Address</label>
+  <p className="text-sm font-semibold text-gray-900 mt-1">{patientData.address || 'N/A'}</p>
+</div>
               </div>
             </div>
 
@@ -665,7 +832,7 @@ export default function PatientMedicalRecordDetailPage() {
                                   Status
                                 </th>
                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                                  Created At
+                                  Priority
                                 </th>
                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                                   Action
@@ -675,6 +842,7 @@ export default function PatientMedicalRecordDetailPage() {
                             <tbody className="bg-white divide-y divide-gray-100/50">
                               {paginatedTestOrders.map((order, index) => {
                                 const orderStatus = order.status || 'Created';
+                                const orderPriority = order.priority || 'Normal';  // THÊM DÒNG NÀY
                                 
                                 return (
                                   <tr 
@@ -683,21 +851,22 @@ export default function PatientMedicalRecordDetailPage() {
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                   >
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                      <div className="text-sm font-medium text-gray-900">{order.testType || order.priority || 'N/A'}</div>
+                                      <div className="text-sm font-medium text-gray-900">{order.testType || 'N/A'}</div>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap w-24">
                                       <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${getStatusColor(orderStatus)}`}>
                                         {orderStatus}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                      {order.createdAt 
-                                        ? new Date(order.createdAt).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric'
-                                          })
-                                        : 'N/A'}
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                      <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all duration-200 ${
+                                        orderPriority === 'Urgent' ? 'bg-red-100 text-red-800' :
+                                        orderPriority === 'High' ? 'bg-orange-100 text-orange-800' :
+                                        orderPriority === 'Normal' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {orderPriority}
+                                      </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                       <div className="flex items-center gap-2">
@@ -827,6 +996,12 @@ export default function PatientMedicalRecordDetailPage() {
           }}
         />
       </div>
+      <MedicalRecordEditModal
+  isOpen={isEditModalOpen}
+  onClose={() => setIsEditModalOpen(false)}
+  onSubmit={handleUpdateMedicalRecord}
+  initialData={patientData}
+/>
     </DashboardLayout>
   );
 }

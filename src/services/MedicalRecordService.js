@@ -20,6 +20,16 @@ export const getMedicalRecordById = async (medicalRecordId) => {
   }
 };
 
+export const updateMedicalRecord = async (medicalRecordId, data) => {
+  try {
+    const response = await api.patch(`/MedicalRecord/${medicalRecordId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating medical record:', error);
+    throw error;
+  }
+};
+
 export const createMedicalRecord = async (payload) => {
   try {
     const response = await api.post('/MedicalRecord', payload);

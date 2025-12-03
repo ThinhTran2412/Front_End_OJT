@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { MessageSquare, Plus, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { MessageSquare, Plus, Edit2, Trash2, X, Save, Loader2, Sparkles } from 'lucide-react';
 import { getCommentsByTestOrderId, addComment, updateComment, deleteComment } from '../../services/CommentService';
 import { useToast } from '../Toast';
 
@@ -12,12 +12,35 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
   const [editMessage, setEditMessage] = useState('');
   const [selectedTestResultIds, setSelectedTestResultIds] = useState([]);
   const { showToast } = useToast();
+  const prevCommentsLengthRef = useRef(0);
 
   useEffect(() => {
     if (testOrderId) {
       fetchComments();
     }
   }, [testOrderId]);
+
+  // ===== BẮT ĐẦU THÊM CODE MỚI =====
+  // Auto-refresh comments when new comment is added (detect length change)
+  useEffect(() => {
+    if (comments.length > prevCommentsLengthRef.current && prevCommentsLengthRef.current > 0) {
+      // New comment detected - scroll to show it
+      console.log('New comment detected, refreshing view');
+    }
+    prevCommentsLengthRef.current = comments.length;
+  }, [comments.length]);
+
+  // Poll for new comments every 3 seconds when modal is open
+  useEffect(() => {
+    if (!testOrderId) return;
+    
+    const pollInterval = setInterval(() => {
+      fetchComments();
+    }, 3000);
+    
+    return () => clearInterval(pollInterval);
+  }, [testOrderId]);
+  // ===== KẾT THÚC THÊM CODE MỚI =====
 
   const fetchComments = async () => {
     if (!testOrderId) return;
@@ -28,7 +51,12 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
       setComments(data || []);
     } catch (error) {
       console.error('Error fetching comments:', error);
-      showToast('Failed to load comments', 'error');
+      // ===== SỬA: Thêm điều kiện để tránh spam toast khi polling =====
+      // Don't show error toast on polling to avoid spam
+      if (!loading) {
+        showToast('Failed to load comments', 'error');
+      }
+      // ===== KẾT THÚC SỬA =====
     } finally {
       setLoading(false);
     }
@@ -139,6 +167,16 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
     }
   };
 
+  // ===== BẮT ĐẦU THÊM CODE MỚI =====
+  // Check if comment is an AI-generated summary
+  const isAiComment = (message) => {
+    return message && (
+      message.startsWith('AI Analysis Summary:') ||
+      message.includes('AI Analysis Summary:')
+    );
+  };
+  // ===== KẾT THÚC THÊM CODE MỚI =====
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Header */}
@@ -237,7 +275,7 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
 
       {/* Comments List */}
       <div className="divide-y divide-gray-200">
-        {loading ? (
+         {loading && comments.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
           </div>
@@ -252,9 +290,15 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
             const message = comment.message || comment.Message || '';
             const createdBy = comment.createdBy || comment.CreatedBy || 'Unknown';
             const createdDate = comment.createdDate || comment.CreatedDate;
+            const isAiGenerated = isAiComment(message); // ===== THÊM DÒNG NÀY =====
 
             return (
-              <div key={commentId} className="p-4 hover:bg-gray-50 transition-colors">
+              <div 
+                key={commentId} 
+                className={`p-4 hover:bg-gray-50 transition-colors ${
+                  isAiGenerated ? 'bg-gradient-to-r from-purple-50/50 to-blue-50/50 border-l-4 border-purple-400' : ''
+                }`}
+              >
                 {isEditing ? (
                   <div className="space-y-3">
                     <textarea
@@ -284,6 +328,16 @@ export default function CommentsSection({ testOrderId, testResults = [] }) {
                   <>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
+                        {/* ===== BẮT ĐẦU THÊM CODE MỚI ===== */}
+                        {isAiGenerated && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 border border-purple-200 rounded-full">
+                              <Sparkles className="w-3 h-3 text-purple-600" />
+                              <span className="text-xs font-semibold text-purple-700">AI Generated</span>
+                            </div>
+                          </div>
+                        )}
+                        {/* ===== KẾT THÚC THÊM CODE MỚI ===== */}
                         <p className="text-sm text-gray-900 whitespace-pre-wrap">{message}</p>
                         <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                           <span>By: {createdBy}</span>

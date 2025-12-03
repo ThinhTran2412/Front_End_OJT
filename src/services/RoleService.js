@@ -131,13 +131,23 @@ export const RoleService = {
   },
 
   // Get Privileges list
+  // Get Privileges list
   getAllPrivileges: async () => {
     try {
       const response = await api.get("/Privileges");
-      return { success: true, data: response.data };
+      console.log('✅ getAllPrivileges response:', response.data);
+      
+      return { 
+        success: true, 
+        data: Array.isArray(response.data) ? response.data : []
+      };
     } catch (error) {
       console.error("❌ Error in getAllPrivileges:", error);
-      return { success: false, message: "Failed to fetch privileges." };
+      return { 
+        success: false, 
+        message: error.response?.data?.message || "Failed to fetch privileges.",
+        data: []
+      };
     }
   },
 };

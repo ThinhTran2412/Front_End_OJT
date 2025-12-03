@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAuthStore } from '../../store/authStore';
+import { User, LogOut } from 'lucide-react';
 import { 
   FlaskConical, 
   Microscope, 
@@ -39,6 +41,66 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const sectionsRef = useRef({});
   const heroRef = useRef(null);
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [displayName, setDisplayName] = useState('User');
+  const [userPrivileges, setUserPrivileges] = useState([]);
+
+
+// Thêm useEffect để decode và lưu tên:
+// Thêm useEffect để decode và lưu tên + privileges:
+useEffect(() => {
+  if (isAuthenticated) {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = parts[1];
+          const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+          const decoded = JSON.parse(
+            decodeURIComponent(
+              atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+            )
+          );
+          
+          // Lấy tên từ các trường có thể có trong JWT
+          const name = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ||
+                      decoded.name || 
+                      decoded.userName || 
+                      decoded.username || 
+                      decoded.given_name || 
+                      decoded.unique_name ||
+                      user?.userName ||
+                      user?.email?.split('@')[0] ||
+                      'User';
+          
+          setDisplayName(name);
+
+          // Lấy privileges từ JWT
+          const privileges = decoded.privilege || 
+                           decoded.privileges || 
+                           decoded.Privilege || 
+                           decoded.Privileges || 
+                           [];
+          
+          // Ensure it's an array
+          const privArray = Array.isArray(privileges) ? privileges : 
+                           typeof privileges === 'string' ? [privileges] : [];
+          
+          setUserPrivileges(privArray);
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        setDisplayName('User');
+        setUserPrivileges([]);
+      }
+    }
+  }
+}, [isAuthenticated, user]);
 
   useEffect(() => {
     let ticking = false;
@@ -92,6 +154,22 @@ export default function Home() {
       });
     };
   }, []);
+
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (showUserMenu && !event.target.closest('.user-menu-container')) {
+      setShowUserMenu(false);
+    }
+  };
+
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, [showUserMenu]);
+
+const handleLogout = () => {
+  logout();
+  window.location.href = '/login';
+};
 
   const features = [
     {
@@ -214,7 +292,7 @@ export default function Home() {
                 }`}>Services</span>
                 <span className="absolute inset-0 bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-md"></span>
               </a>
-              <a href="#stats" className={`relative px-4 py-2 text-base font-medium transition-all duration-300 rounded-lg group backdrop-blur-sm ${
+              <a href="/about" className={`relative px-4 py-2 text-base font-medium transition-all duration-300 rounded-lg group backdrop-blur-sm ${
                 isScrolled ? 'text-gray-900' : 'text-white/90'
               }`}>
                 <span className={`relative z-10 transition-colors duration-300 ${
@@ -232,14 +310,48 @@ export default function Home() {
               </a>
             </nav>
 
-            {/* Login Button */}
-        <a 
-          href="/login" 
-              className="group relative flex items-center gap-2 px-6 py-2.5 text-gray-700 rounded-xl font-medium transition-all duration-300 border border-transparent hover:bg-white hover:shadow-lg hover:scale-105 hover:border-dashed hover:border-black focus:border-dashed focus:!border-black focus:bg-white focus:text-black outline-none"
-            >
-              <LogIn className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
-              <span>Login</span>
-            </a>
+            {/* User Menu hoặc Login Button */}
+      {isAuthenticated && user ? (
+        <div className="relative user-menu-container">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="group relative flex items-center gap-2 px-6 py-2.5 text-gray-700 rounded-xl font-medium transition-all duration-300 border border-transparent hover:bg-white hover:shadow-lg hover:scale-105 focus:bg-white focus:text-black outline-none"
+          >
+            <User className="w-4 h-4" />
+            <span>Hi, {displayName}</span>
+          </button>
+          
+          {showUserMenu && (
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+
+          <a
+          href={userPrivileges.length === 1 && userPrivileges.includes('READ_ONLY') ? '/medical-records' : '/dashboard'}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <User className="w-4 h-4" />
+          <span>{userPrivileges.length === 1 && userPrivileges.includes('READ_ONLY') ? 'My Records' : 'Dashboard'}</span>
+        </a>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors text-left"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      )}
+
+      </div>
+    ) : (
+      <a 
+        href="/login" 
+        className="group relative flex items-center gap-2 px-6 py-2.5 text-gray-700 rounded-xl font-medium transition-all duration-300 border border-transparent hover:bg-white hover:shadow-lg hover:scale-105 hover:border-dashed hover:border-black focus:border-dashed focus:!border-black focus:bg-white focus:text-black outline-none"
+      >
+        <LogIn className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
+        <span>Login</span>
+      </a>
+    )}
           </div>
         </div>
       </header>
@@ -289,13 +401,16 @@ export default function Home() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-delay-2">
-                <button className="group relative px-8 py-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-700 hover:border-gray-600 overflow-hidden">
+                <a 
+                  href={isAuthenticated && userPrivileges.length === 1 && userPrivileges.includes('READ_ONLY') ? '/medical-records' : '/dashboard'}
+                  className="group relative px-8 py-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-700 hover:border-gray-600 overflow-hidden"
+                >
                   <span className="relative z-10 flex items-center gap-2">
-                    See Dashboard
+                    {isAuthenticated && userPrivileges.length === 1 && userPrivileges.includes('READ_ONLY') ? 'View My Records' : 'See Dashboard'}
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-pastel-blue/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </button>
+                </a>
                 <button className="group relative px-8 py-4 bg-white text-gray-900 rounded-xl font-semibold text-lg border-2 border-gray-200 hover:border-gray-300 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
                   <span className="relative z-10">Learn More</span>
                   <div className="absolute inset-0 bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -391,8 +506,8 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Equipment Image */}
-            <div className={`group relative overflow-hidden rounded-2xl aspect-[4/3] hover:shadow-xl transition-all duration-500 transform hover:scale-105 ${
-              isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            <div className={`relative overflow-hidden rounded-2xl aspect-[4/3] shadow-xl transition-all duration-500 ${
+            isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
             }`}>
               <img
                 src={equipmentImage}
@@ -416,8 +531,8 @@ export default function Home() {
             </div>
 
             {/* Team Image */}
-            <div className={`group relative overflow-hidden rounded-2xl aspect-[4/3] hover:shadow-xl transition-all duration-500 transform hover:scale-105 ${
-              isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            <div className={`relative overflow-hidden rounded-2xl aspect-[4/3] shadow-xl transition-all duration-500 ${
+            isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
             }`} style={{ transitionDelay: '100ms' }}>
               <img
                 src={teamImage}
@@ -441,8 +556,8 @@ export default function Home() {
             </div>
 
             {/* Laboratory Room Image */}
-            <div className={`group relative overflow-hidden rounded-2xl aspect-[4/3] hover:shadow-xl transition-all duration-500 transform hover:scale-105 ${
-              isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            <div className={`relative overflow-hidden rounded-2xl aspect-[4/3] shadow-xl transition-all duration-500 ${
+            isVisible.gallery ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
             }`} style={{ transitionDelay: '200ms' }}>
               <img
                 src={roomImage}
@@ -565,7 +680,7 @@ export default function Home() {
               return (
                 <div
                   key={index}
-                  className={`group relative p-6 ${serviceVariants[index % serviceVariants.length]} backdrop-blur-md rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-4 border-2 border-pastel-blue/50 hover:border-pastel-blue/70 overflow-hidden ${
+                  className={`relative p-6 ${serviceVariants[index % serviceVariants.length]} backdrop-blur-md rounded-3xl shadow-xl border-2 border-pastel-blue/50 overflow-hidden ${
                     isVisible.services 
                       ? 'opacity-100 translate-y-0' 
                       : 'opacity-0 translate-y-10'
@@ -573,30 +688,30 @@ export default function Home() {
                   style={{ transitionDelay: `${index * 100}ms` }}
                 >
                   {/* Decorative element */}
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-pastel-blue/25 to-transparent rounded-bl-full opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-pastel-blue/25 to-transparent rounded-bl-full opacity-60"></div>
                   
                   {/* Header with Icon and Stats */}
-                  <div className="flex items-start justify-between mb-5 relative z-10">
-                    <div className="p-4 bg-gray-100 rounded-2xl border-2 border-gray-200 group-hover:bg-gray-200 group-hover:border-gray-300 transition-all duration-300 group-hover:rotate-12 transform shadow-xl">
-                      <Icon className="w-6 h-6 text-gray-900" />
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-black bg-gradient-to-r from-pastel-blue-dark via-blue-600 to-pastel-blue-dark bg-clip-text text-transparent group-hover:scale-110 transform duration-300 leading-none">
-                        {service.stats}
+                    <div className="flex items-start justify-between mb-5 relative z-10">
+                      <div className="p-4 bg-gray-100 rounded-2xl border-2 border-gray-200 shadow-xl">
+                        <Icon className="w-6 h-6 text-gray-900" />
                       </div>
-                      <div className="text-xs font-medium text-gray-500 mt-1">Tests</div>
+                      <div className="text-right">
+                        <div className="text-3xl font-black bg-gradient-to-r from-pastel-blue-dark via-blue-600 to-pastel-blue-dark bg-clip-text text-transparent leading-none">
+                          {service.stats}
+                        </div>
+                        <div className="text-xs font-medium text-gray-500 mt-1">Tests</div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Title */}
-                  <h3 className="text-lg font-bold text-gray-900 mb-3 group-hover:text-blue-700 transition-colors leading-tight">
-                    {service.title}
-                  </h3>
-                  
-                  {/* Description */}
-                  <p className="text-gray-600 text-sm leading-relaxed mb-5 min-h-[3rem]">
-                    {service.description}
-                  </p>
+                    
+                    {/* Title */}
+                    <h3 className="text-lg font-bold text-gray-900 mb-3 leading-tight">
+                      {service.title}
+                    </h3>
+                    
+                    {/* Description */}
+                    <p className="text-gray-600 text-sm leading-relaxed min-h-[3rem]">
+                      {service.description}
+                    </p>
                   
                   {/* CTA Link */}
                   <div className="pt-4 border-t-2 border-pastel-blue/30">
@@ -636,11 +751,11 @@ export default function Home() {
             Contact us today for the best consultation and support
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="group relative px-8 py-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 shadow-lg overflow-hidden">
+            <button className="group relative px-8 py-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-xl font-semibold text-lg transition-all duration-300 transform shadow-lg overflow-hidden">
               <span className="relative z-10">Contact Now</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-pastel-blue/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-pastel-blue/20 via-transparent to-transparent opacity-0  transition-opacity duration-300"></div>
             </button>
-            <button className="px-8 py-4 bg-white text-gray-900 border-2 border-gray-300 rounded-xl font-semibold text-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 transform hover:scale-110 shadow-lg hover:shadow-xl">
+            <button className="px-8 py-4 bg-white text-gray-900 border-2 border-gray-300 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 transform  shadow-lg">
               View More Services
             </button>
           </div>
@@ -669,16 +784,16 @@ export default function Home() {
                 Advanced laboratory solutions with cutting-edge technology and professional expertise.
               </p>
               <div className="flex gap-4">
-                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-pastel-blue transition-colors">
+                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center ">
                   <Facebook className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-pastel-blue transition-colors">
+                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center ">
                   <Twitter className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-pastel-blue transition-colors">
+                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center ">
                   <Instagram className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-pastel-blue transition-colors">
+                <a href="#" className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center ">
                   <Linkedin className="w-5 h-5" />
         </a>
       </div>
@@ -691,7 +806,7 @@ export default function Home() {
                 <li><a href="#features" className="text-gray-400 hover:text-pastel-blue transition-colors">Features</a></li>
                 <li><a href="#services" className="text-gray-400 hover:text-pastel-blue transition-colors">Services</a></li>
                 <li><a href="#gallery" className="text-gray-400 hover:text-pastel-blue transition-colors">Gallery</a></li>
-                <li><a href="#stats" className="text-gray-400 hover:text-pastel-blue transition-colors">About Us</a></li>
+                <li><a href="#stats" className="text-gray-400">About Us</a></li>
               </ul>
             </div>
 
@@ -699,10 +814,10 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Services</h3>
               <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-pastel-blue transition-colors">Blood Testing</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-pastel-blue transition-colors">Biochemical Analysis</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-pastel-blue transition-colors">Immunology Testing</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-pastel-blue transition-colors">Research & Development</a></li>
+                <li><a href="#" className="text-gray-400 ">Blood Testing</a></li>
+                <li><a href="#" className="text-gray-400 ">Biochemical Analysis</a></li>
+                <li><a href="#" className="text-gray-400 ">Immunology Testing</a></li>
+                <li><a href="#" className="text-gray-400 ">Research & Development</a></li>
               </ul>
             </div>
 
