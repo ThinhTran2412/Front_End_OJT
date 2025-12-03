@@ -716,8 +716,6 @@ const handleLogout = () => {
                   {/* CTA Link */}
                   <div className="pt-4 border-t-2 border-pastel-blue/30">
                     <a href="#" className="text-xs font-semibold text-pastel-blue-dark hover:text-blue-600 transition-colors inline-flex items-center gap-2 group/link">
-                      <span>View details</span>
-                      <ArrowRight className="w-3.5 h-3.5 group-hover/link:translate-x-1 transition-transform" />
                     </a>
                   </div>
                 </div>
